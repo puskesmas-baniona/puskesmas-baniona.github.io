@@ -10671,6 +10671,36 @@ function doSyncFromST(){
   `;
 })();
 
+</script><!-- Tombol Install PWA -->
+<div id="pwa-install-bar" style="display:none;position:fixed;bottom:20px;right:20px;z-index:9999;">
+  <button id="pwa-install-btn" onclick="installPWA()" style="
+    display:flex;align-items:center;gap:8px;
+    background:#155a2a;color:white;
+    border:none;border-radius:50px;
+    padding:12px 20px;font-size:14px;font-weight:600;
+    box-shadow:0 4px 16px rgba(0,0,0,0.25);
+    cursor:pointer;font-family:inherit;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm-1 14.5v-4H7l5-7v4h4l-5 7z"/></svg>
+    Install Aplikasi
+  </button>
+</div>
+
+<script>
+  let _installPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    _installPrompt = e;
+    document.getElementById('pwa-install-bar').style.display = 'block';
+  });
+  window.addEventListener('appinstalled', () => {
+    document.getElementById('pwa-install-bar').style.display = 'none';
+  });
+  function installPWA() {
+    if (_installPrompt) {
+      _installPrompt.prompt();
+      _installPrompt.userChoice.then(() => { _installPrompt = null; });
+    }
+  }
 </script>
 </body>
 </html>
