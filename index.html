@@ -10684,23 +10684,6 @@ function doSyncFromST(){
     Install Aplikasi
   </button>
 </div>
-
 <script>
-  let _installPrompt = null;
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    _installPrompt = e;
-    document.getElementById('pwa-install-bar').style.display = 'block';
-  });
-  window.addEventListener('appinstalled', () => {
-    document.getElementById('pwa-install-bar').style.display = 'none';
-  });
-  function installPWA() {
-    if (_installPrompt) {
-      _installPrompt.prompt();
-      _installPrompt.userChoice.then(() => { _installPrompt = null; });
-    }
-  }
-</script>
 </body>
 </html>
