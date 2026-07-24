@@ -10415,72 +10415,63 @@ function imporData(event){
         return;
       }
 
-      // Terapkan ke localStorage (gunakan sesi dari backup, tidak perlu override)
-      localStorage.clear();
-      // Flag untuk loadDB() agar skip migrasi destruktif saat restore
-      localStorage.setItem('_restoring_backup','1');
-      const gagal=[];
-      Object.entries(snapshot).forEach(([k,v])=>{
-        try{
-          localStorage.setItem(k,v);
-        }catch(writeErr){
-          gagal.push(k);
-        }
-      });
-
-      // Verifikasi: pastikan st_app_db_v2 benar-benar tersimpan dan terbaca
-      let verifikasiOk=false;
-      try{
-        const cek=localStorage.getItem('st_app_db_v2');
-        if(cek){
-          const parsed=JSON.parse(cek);
-          if(parsed && Array.isArray(parsed.pegawai) && parsed.pegawai.length>0){
-            verifikasiOk=true;
-          }
-        }
-      }catch(vErr){}
-
-      if(!verifikasiOk){
-        throw new Error(
-          'Data berhasil ditulis ke localStorage, tetapi verifikasi gagal — '+
-          'kemungkinan kuota penyimpanan browser penuh atau data korup.\n\n'+
-          'Coba: buka Pengaturan browser → Hapus data situs lain yang tidak perlu, lalu coba restore lagi.'
-        );
+      // Parse data utama dari backup
+      const backupDB=JSON.parse(snapshot[DB_KEY]);
+      if(!backupDB || !Array.isArray(backupDB.pegawai) || backupDB.pegawai.length===0){
+        throw new Error('Data pegawai tidak ditemukan atau kosong di file backup.');
       }
 
-      if(gagal.length){
-        statusEl.style.display='block';
-        statusEl.style.background='#fef9c3';
-        statusEl.style.color='#92400e';
-        statusEl.style.border='1px solid #fde68a';
-        statusEl.innerHTML='⚠️ Restore sebagian berhasil, tetapi '+gagal.length+' key gagal ditulis: <b>'+gagal.join(', ')+'</b><br>Data utama (pegawai, lokasi, surat tugas) sudah tersimpan. Halaman akan dimuat ulang…';
-        setTimeout(()=>location.reload(),2500);
-        return;
+      // Kunci saveDB agar tidak menimpa selama proses restore
+      window._restoringBackup=true;
+
+      // 1. Inject langsung ke variable db yang aktif di memory
+      //    Ini mencegah saveDB() menimpa data backup saat reload
+      db.pegawai=backupDB.pegawai;
+      db.lokasi=backupDB.lokasi||[];
+      db.suratTugas=backupDB.suratTugas||[];
+      db.jadwal=backupDB.jadwal||[];
+      db.nextJadwal=backupDB.nextJadwal||1;
+      db.nextST=backupDB.nextST||1;
+      db.nextPeg=backupDB.nextPeg||1;
+      db.nextLok=backupDB.nextLok||1;
+      db.jenisKegiatan=backupDB.jenisKegiatan||[];
+      db.nextJenisKegiatan=backupDB.nextJenisKegiatan||1;
+      db.pejabat=backupDB.pejabat||{};
+      db.manajemenUser=backupDB.manajemenUser||{username:'manajemen',password:'manajemen123'};
+      db.lpdList=backupDB.lpdList||[];
+      db.paguAnggaran=backupDB.paguAnggaran||{};
+      db.jadwalPiket=backupDB.jadwalPiket||[];
+
+      // 2. Tulis semua key backup ke localStorage
+      localStorage.clear();
+      Object.entries(snapshot).forEach(([k,v])=>{
+        try{ localStorage.setItem(k,v); }catch(err2){}
+      });
+
+      // 3. Paksa simpan db yang sudah di-inject ke localStorage
+      //    Ini memastikan data backup yang benar tersimpan, bukan data default
+      localStorage.setItem(DB_KEY, JSON.stringify(db));
+
+      // 4. Verifikasi
+      const cekST=JSON.parse(localStorage.getItem(DB_KEY)||'{}');
+      if(!cekST.suratTugas || cekST.suratTugas.length===0){
+        throw new Error('Verifikasi gagal — suratTugas kosong setelah disimpan. Coba lagi.');
       }
 
       statusEl.style.display='block';
       statusEl.style.background='#dcfce7';
       statusEl.style.color='#15803d';
       statusEl.style.border='1px solid #86efac';
-      statusEl.innerHTML='✅ Data berhasil dipulihkan! ('+keys.length+' item) Halaman akan dimuat ulang…';
+      statusEl.innerHTML='✅ Data berhasil dipulihkan! (pegawai: '+db.pegawai.length+', jadwal: '+db.jadwal.length+', ST: '+db.suratTugas.length+') Halaman akan dimuat ulang…';
 
-      // Kunci saveDB agar tidak menimpa data backup sebelum reload selesai
-      window._restoringBackup=true;
-
-      // Hapus Service Worker & cache agar halaman reload dari server, bukan cache lama
-      const clearSWAndReload=()=>{
-        Promise.all([
-          navigator.serviceWorker?navigator.serviceWorker.getRegistrations().then(regs=>Promise.all(regs.map(r=>r.unregister()))):Promise.resolve(),
-          window.caches?caches.keys().then(keys=>Promise.all(keys.map(k=>caches.delete(k)))):Promise.resolve()
-        ]).finally(()=>location.reload());
-      };
-      setTimeout(clearSWAndReload,1500);
+      setTimeout(()=>location.reload(),1500);
     } catch(err){
+      window._restoringBackup=false;
       statusEl.style.display='block';
       statusEl.style.background='#fde8e8';
       statusEl.style.color='#c0392b';
       statusEl.style.border='1px solid #fca5a5';
-      statusEl.innerHTML='❌ Gagal memuat file: '+err.message;
+      statusEl.innerHTML='❌ Gagal restore: '+err.message;
       event.target.value='';
     }
   };
