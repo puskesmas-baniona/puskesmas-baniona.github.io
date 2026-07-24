@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sistem Terpadu UPTD Puskesmas Baniona</title>
+<!-- PWA -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#155a2a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PKM BO">
+<link rel="apple-touch-icon" href="/icons/icon-192x192.png">
 <!-- SheetJS for Excel parsing -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
@@ -16551,6 +16558,23 @@ restoreSession();
 // Script sidebar duplikat dihapus — sidebar dikendalikan sepenuhnya
 // oleh toggleSidebar() / closeSidebar() + class body.sidebar-open (CSS).
 
+</script>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// PWA - SERVICE WORKER REGISTRATION
+// ═══════════════════════════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('/sw.js')
+      .then(function (reg) {
+        console.log('✅ Service Worker terdaftar:', reg.scope);
+      })
+      .catch(function (err) {
+        console.warn('❌ Service Worker gagal:', err);
+      });
+  });
+}
 </script>
 </body>
 </html>
