@@ -2,330 +2,369 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Install Aplikasi – PKM Baniona</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --green-dark: #1a4d2e;
-      --green-mid:  #2e7d52;
-      --green-light:#4caf80;
-      --green-pale: #e8f5ee;
-      --white: #ffffff;
-      --gray: #6b7280;
-      --gray-light: #f3f4f6;
-      --text: #111827;
-      --radius: 16px;
+      --green-deep:  #0A5C3A;
+      --green-mid:   #1A7D52;
+      --green-light: #E8F5EE;
+      --green-pale:  #F2FAF5;
+      --accent:      #00B96B;
+      --text:        #0D2318;
+      --muted:       #5A7A69;
+      --border:      #C6E0D3;
+      --white:       #FFFFFF;
     }
 
     body {
-      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
       background: var(--green-pale);
       color: var(--text);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding: 24px 16px;
     }
 
-    .card {
-      background: var(--white);
-      border-radius: 24px;
-      padding: 40px 32px;
-      max-width: 420px;
+    /* ── HEADER ── */
+    header {
       width: 100%;
-      box-shadow: 0 4px 32px rgba(26,77,46,0.12);
+      background: var(--green-deep);
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .logo-ring {
+      width: 46px; height: 46px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo-ring svg { width: 26px; height: 26px; fill: white; }
+    .header-text h1 { font-size: 16px; font-weight: 700; color: white; line-height: 1.2; }
+    .header-text p  { font-size: 12px; color: #8ecfb0; margin-top: 2px; }
+
+    /* ── HERO ── */
+    .hero {
+      width: 100%; max-width: 520px;
+      padding: 36px 24px 0;
       text-align: center;
     }
-
-    .icon-wrap {
-      width: 88px;
-      height: 88px;
-      background: linear-gradient(135deg, var(--green-mid), var(--green-light));
-      border-radius: 22px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 20px;
-      box-shadow: 0 8px 20px rgba(46,125,82,0.3);
-    }
-
-    .icon-wrap svg {
-      width: 48px;
-      height: 48px;
-      fill: white;
-    }
-
-    .badge {
+    .hero-badge {
       display: inline-block;
-      background: var(--green-pale);
-      color: var(--green-dark);
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.05em;
+      background: var(--green-light);
+      color: var(--green-deep);
+      font-size: 11px; font-weight: 700;
+      letter-spacing: .08em;
       text-transform: uppercase;
-      padding: 4px 12px;
-      border-radius: 99px;
-      margin-bottom: 12px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      margin-bottom: 16px;
     }
-
-    h1 {
-      font-size: 22px;
+    .hero h2 {
+      font-size: clamp(22px, 6vw, 30px);
       font-weight: 700;
-      color: var(--green-dark);
-      line-height: 1.3;
-      margin-bottom: 8px;
+      color: var(--green-deep);
+      line-height: 1.25;
+      margin-bottom: 10px;
     }
-
-    .subtitle {
+    .hero p {
       font-size: 14px;
-      color: var(--gray);
-      line-height: 1.6;
-      margin-bottom: 28px;
+      color: var(--muted);
+      line-height: 1.65;
+      max-width: 380px;
+      margin: 0 auto 28px;
     }
 
-    /* ---- ANDROID / DESKTOP BUTTON ---- */
+    /* ── INSTALL BUTTON (Android / Chrome) ── */
     #btn-install {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
+      display: none;
       width: 100%;
-      padding: 16px;
-      background: linear-gradient(135deg, var(--green-dark), var(--green-mid));
+      max-width: 340px;
+      margin: 0 auto 12px;
+      background: var(--accent);
       color: white;
+      border: none;
+      border-radius: 14px;
+      padding: 16px 24px;
       font-family: inherit;
       font-size: 16px;
       font-weight: 700;
-      border: none;
-      border-radius: var(--radius);
       cursor: pointer;
-      transition: opacity 0.2s, transform 0.1s;
+      box-shadow: 0 6px 24px rgba(0,185,107,.35);
+      transition: transform .15s, box-shadow .15s;
     }
-    #btn-install:hover { opacity: 0.92; }
-    #btn-install:active { transform: scale(0.98); }
-    #btn-install svg { flex-shrink: 0; }
+    #btn-install:hover  { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,185,107,.4); }
+    #btn-install:active { transform: translateY(0); }
+    #btn-install.visible { display: block; }
 
-    /* ---- iOS GUIDE ---- */
-    #ios-guide { display: none; }
-
-    .steps {
-      text-align: left;
-      margin-top: 4px;
+    .btn-open {
+      display: block;
+      width: 100%; max-width: 340px;
+      margin: 0 auto 8px;
+      background: var(--green-deep);
+      color: white;
+      border: none;
+      border-radius: 14px;
+      padding: 15px 24px;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      text-align: center;
+      text-decoration: none;
+      transition: background .15s;
     }
+    .btn-open:hover { background: var(--green-mid); }
+
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 32px;
+    }
+
+    /* ── DEVICE TABS ── */
+    .tabs-wrap { width: 100%; max-width: 520px; padding: 0 24px; }
+    .tabs {
+      display: flex;
+      gap: 6px;
+      background: var(--green-light);
+      border-radius: 12px;
+      padding: 5px;
+      margin-bottom: 16px;
+    }
+    .tab-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      border-radius: 9px;
+      padding: 9px 6px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      transition: background .15s, color .15s;
+    }
+    .tab-btn svg { width: 20px; height: 20px; }
+    .tab-btn.active { background: white; color: var(--green-deep); box-shadow: 0 2px 8px rgba(10,92,58,.12); }
+
+    /* ── STEPS ── */
+    .steps-panel { display: none; }
+    .steps-panel.active { display: block; }
+
+    .steps-card {
+      background: white;
+      border-radius: 16px;
+      border: 1.5px solid var(--border);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .steps-header {
+      background: var(--green-deep);
+      padding: 14px 18px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .steps-header svg { width: 20px; height: 20px; fill: var(--accent); flex-shrink: 0; }
+    .steps-header span { font-size: 13px; font-weight: 700; color: white; }
 
     .step {
       display: flex;
       align-items: flex-start;
       gap: 14px;
-      padding: 14px 0;
-      border-bottom: 1px solid var(--gray-light);
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--green-light);
     }
     .step:last-child { border-bottom: none; }
-
     .step-num {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--green-light);
+      color: var(--green-deep);
+      font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
-      width: 28px;
-      height: 28px;
-      background: var(--green-dark);
-      color: white;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 13px;
-      font-weight: 700;
-      margin-top: 2px;
+      margin-top: 1px;
+    }
+    .step-text { font-size: 14px; line-height: 1.6; color: var(--text); }
+    .step-text strong { color: var(--green-deep); }
+    .step-img {
+      display: block;
+      width: 100%; max-width: 180px;
+      margin: 8px 0 0 0;
+      border-radius: 8px;
+      border: 1px solid var(--border);
     }
 
-    .step-text {
-      font-size: 14px;
-      color: var(--text);
-      line-height: 1.5;
+    /* ── SUCCESS NOTE ── */
+    .success-note {
+      background: var(--green-light);
+      border-radius: 12px;
+      padding: 14px 16px;
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 24px;
+      border: 1.5px solid var(--border);
     }
+    .success-note svg { width: 24px; height: 24px; fill: var(--accent); flex-shrink: 0; }
+    .success-note p { font-size: 13px; color: var(--green-deep); line-height: 1.55; }
+    .success-note p strong { font-weight: 700; }
 
-    .step-text strong { color: var(--green-dark); }
-
-    .step-icon {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--green-pale);
-      border-radius: 6px;
-      padding: 2px 5px;
-      vertical-align: middle;
-    }
-
-    /* ---- open link button ---- */
-    #btn-open {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
+    /* ── FOOTER ── */
+    footer {
       width: 100%;
-      padding: 14px;
-      margin-top: 20px;
-      background: var(--green-pale);
-      color: var(--green-dark);
-      font-family: inherit;
-      font-size: 15px;
-      font-weight: 600;
-      border: none;
-      border-radius: var(--radius);
-      cursor: pointer;
-      text-decoration: none;
-    }
-    #btn-open:hover { background: #d5ede0; }
-
-    /* ---- success state ---- */
-    #success { display: none; }
-    .success-icon {
-      width: 60px;
-      height: 60px;
-      background: var(--green-pale);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 16px;
-    }
-
-    .footer {
-      margin-top: 28px;
+      text-align: center;
+      padding: 20px 24px 32px;
       font-size: 12px;
-      color: var(--gray);
+      color: var(--muted);
     }
+    footer a { color: var(--green-mid); text-decoration: none; }
   </style>
 </head>
 <body>
 
-<div class="card">
-
-  <div class="icon-wrap">
-    <!-- Medical cross icon -->
-    <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-      <path d="M28 8h-8v12H8v8h12v12h8V28h12v-8H28z"/>
-    </svg>
+<!-- HEADER -->
+<header>
+  <div class="logo-ring">
+    <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
   </div>
+  <div class="header-text">
+    <h1>Puskesmas Baniona</h1>
+    <p>Sistem Terpadu PKM Baniona</p>
+  </div>
+</header>
 
-  <span class="badge">Puskesmas Baniona</span>
-  <h1>Sistem Terpadu PKM Baniona</h1>
-  <p class="subtitle">Install aplikasi di perangkat Anda untuk akses cepat tanpa buka browser setiap saat.</p>
+<!-- HERO -->
+<div class="hero">
+  <span class="hero-badge">📲 Pasang Aplikasi</span>
+  <h2>Akses Lebih Cepat &amp; Mudah</h2>
+  <p>Install aplikasi PKM Baniona di perangkat Anda. Tidak perlu buka browser setiap saat — langsung buka dari layar utama.</p>
 
-  <!-- Android / Desktop -->
-  <div id="android-section">
-    <button id="btn-install" onclick="triggerInstall()">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm-1 14.5v-4H7l5-7v4h4l-5 7z"/></svg>
-      Install Aplikasi
+  <!-- Android auto-install button (hidden until PWA prompt fires) -->
+  <button id="btn-install">⬇ Install Aplikasi Sekarang</button>
+
+  <a class="btn-open" href="https://puskesmas-baniona.github.io/" target="_blank">🌐 Buka Aplikasi di Browser</a>
+  <p class="hint">Atau ikuti panduan di bawah sesuai perangkat Anda</p>
+</div>
+
+<!-- TABS -->
+<div class="tabs-wrap">
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('android')">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 18c0 .55.45 1 1 1h1v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h2v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h1c.55 0 1-.45 1-1V8H6v10zM3.5 8C2.67 8 2 8.67 2 9.5v7c0 .83.67 1.5 1.5 1.5S5 17.33 5 16.5v-7C5 8.67 4.33 8 3.5 8zm17 0c-.83 0-1.5.67-1.5 1.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7c0-.83-.67-1.5-1.5-1.5zm-4.97-5.84l1.3-1.3c.2-.2.2-.51 0-.71-.2-.2-.51-.2-.71 0l-1.48 1.48A5.84 5.84 0 0 0 12 1.5c-.96 0-1.86.23-2.66.63L7.88.65c-.2-.2-.51-.2-.71 0-.2.2-.2.51 0 .71l1.31 1.31A5.956 5.956 0 0 0 6 7h12c0-1.98-.96-3.73-2.47-4.84zM10 5H9V4h1v1zm5 0h-1V4h1v1z"/></svg>
+      Android
+    </button>
+    <button class="tab-btn" onclick="switchTab('iphone')">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/></svg>
+      iPhone/iPad
+    </button>
+    <button class="tab-btn" onclick="switchTab('pc')">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
+      PC/Laptop
     </button>
   </div>
 
-  <!-- iOS Guide -->
-  <div id="ios-guide">
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <div class="step-text">
-          Buka link ini di <strong>Safari</strong> (bukan Chrome atau browser lain)
-        </div>
+  <!-- ANDROID -->
+  <div id="panel-android" class="steps-panel active">
+    <div class="steps-card">
+      <div class="steps-header">
+        <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+        <span>Panduan Install di Android (Chrome)</span>
       </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <div class="step-text">
-          Tap tombol <strong>Bagikan</strong>
-          <span class="step-icon">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="#1a4d2e"><path d="M12 2l-4 4h3v8h2V6h3L12 2zm-7 14v4h14v-4h-2v2H7v-2H5z"/></svg>
-          </span>
-          di bagian bawah layar
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <div class="step-text">
-          Gulir ke bawah dan pilih <strong>"Add to Home Screen"</strong>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">4</div>
-        <div class="step-text">
-          Tap <strong>"Add"</strong> — aplikasi akan muncul di layar utama!
-        </div>
-      </div>
+      <div class="step"><div class="step-num">1</div><div class="step-text">Buka link aplikasi di <strong>Google Chrome</strong>:<br><a href="https://puskesmas-baniona.github.io/" style="color:var(--green-mid)">puskesmas-baniona.github.io</a></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-text">Tunggu beberapa detik — Chrome akan menampilkan banner <strong>"Tambahkan ke Layar Utama"</strong> di bagian bawah layar.</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-text">Ketuk <strong>"Instal"</strong> atau <strong>"Tambahkan"</strong> pada banner tersebut.</div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-text">Jika banner tidak muncul: ketuk ikon <strong>⋮</strong> (tiga titik) di pojok kanan atas, lalu pilih <strong>"Tambahkan ke layar utama"</strong>.</div></div>
+      <div class="step"><div class="step-num">5</div><div class="step-text">Ikon aplikasi PKM Baniona akan muncul di <strong>layar utama</strong> perangkat Anda. ✅</div></div>
+    </div>
+    <div class="success-note">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+      <p><strong>Selesai!</strong> Buka aplikasi langsung dari ikon di layar utama seperti aplikasi biasa — tanpa buka browser lagi.</p>
     </div>
   </div>
 
-  <!-- Success state -->
-  <div id="success">
-    <div class="success-icon">
-      <svg width="30" height="30" viewBox="0 0 24 24" fill="#2e7d52"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+  <!-- IPHONE -->
+  <div id="panel-iphone" class="steps-panel">
+    <div class="steps-card">
+      <div class="steps-header">
+        <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+        <span>Panduan Install di iPhone / iPad (Safari)</span>
+      </div>
+      <div class="step"><div class="step-num">1</div><div class="step-text">Buka link ini di <strong>Safari</strong> (bukan Chrome atau browser lain):<br><a href="https://puskesmas-baniona.github.io/" style="color:var(--green-mid)">puskesmas-baniona.github.io</a></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-text">Ketuk ikon <strong>Bagikan</strong> (kotak dengan panah ke atas ↑) di bagian bawah layar Safari.</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-text">Gulir ke bawah pada menu yang muncul, lalu ketuk <strong>"Tambahkan ke Layar Utama" (Add to Home Screen)</strong>.</div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-text">Ketuk <strong>"Tambahkan"</strong> (Add) di pojok kanan atas.</div></div>
+      <div class="step"><div class="step-num">5</div><div class="step-text">Ikon aplikasi PKM Baniona akan muncul di layar utama iPhone/iPad Anda. ✅</div></div>
     </div>
-    <p style="font-size:15px; font-weight:600; color:#1a4d2e; margin-bottom:6px;">Instalasi berhasil!</p>
-    <p style="font-size:13px; color:#6b7280;">Cari ikon aplikasi di layar utama perangkat Anda.</p>
+    <div class="success-note">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+      <p><strong>Penting:</strong> Gunakan <strong>Safari</strong>, bukan Chrome/Firefox — hanya Safari yang mendukung fitur "Add to Home Screen" di iOS.</p>
+    </div>
   </div>
 
-  <a id="btn-open" href="https://puskesmas-baniona.github.io/" target="_blank">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="#1a4d2e"><path d="M19 19H5V5h7V3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
-    Buka di Browser
-  </a>
+  <!-- PC -->
+  <div id="panel-pc" class="steps-panel">
+    <div class="steps-card">
+      <div class="steps-header">
+        <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+        <span>Panduan Install di PC / Laptop (Chrome atau Edge)</span>
+      </div>
+      <div class="step"><div class="step-num">1</div><div class="step-text">Buka link berikut di <strong>Google Chrome</strong> atau <strong>Microsoft Edge</strong>:<br><a href="https://puskesmas-baniona.github.io/" style="color:var(--green-mid)">puskesmas-baniona.github.io</a></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-text">Cari ikon <strong>⊕</strong> atau ikon komputer kecil di bagian kanan <strong>address bar</strong> (bilah alamat).</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-text">Klik ikon tersebut, lalu pilih <strong>"Install"</strong> pada dialog yang muncul.</div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-text">Aplikasi akan terbuka di jendela terpisah dan ditambahkan ke <strong>taskbar / Start Menu</strong>. ✅</div></div>
+    </div>
+    <div class="success-note">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+      <p><strong>Tips:</strong> Jika ikon install tidak muncul, coba reload halaman atau buka via <strong>Menu ⋮ → Simpan dan bagikan → Instal halaman sebagai aplikasi</strong>.</p>
+    </div>
+  </div>
 
-  <p class="footer">PKM Baniona &nbsp;·&nbsp; Sistem Terpadu Puskesmas</p>
-</div>
+</div><!-- /tabs-wrap -->
+
+<footer>
+  <p>PKM Baniona · Sistem Terpadu Puskesmas</p>
+  <p style="margin-top:6px"><a href="https://puskesmas-baniona.github.io/">puskesmas-baniona.github.io</a></p>
+</footer>
 
 <script>
-  let deferredPrompt = null;
-
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const isInStandaloneMode = window.matchMedia('(display-mode: standalone)').matches
-    || window.navigator.standalone === true;
-
-  // Already installed
-  if (isInStandaloneMode) {
-    showSuccess();
-  } else if (isIOS) {
-    showIOS();
-  } else {
-    // Android / Desktop: wait for beforeinstallprompt
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      // Button already visible, nothing extra needed
+  // Tab switching
+  function switchTab(id) {
+    document.querySelectorAll('.tab-btn').forEach((b,i) => {
+      b.classList.toggle('active', ['android','iphone','pc'][i] === id);
     });
-
-    // If PWA already installed, Chrome fires appinstalled
-    window.addEventListener('appinstalled', () => {
-      showSuccess();
-    });
+    document.querySelectorAll('.steps-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + id).classList.add('active');
   }
 
-  async function triggerInstall() {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      deferredPrompt = null;
-      if (outcome === 'accepted') showSuccess();
-    } else {
-      // Fallback: open the app URL so user can install from browser bar
-      window.open('https://puskesmas-baniona.github.io/', '_blank');
+  // PWA install prompt (Android/Chrome)
+  let deferredPrompt;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    document.getElementById('btn-install').classList.add('visible');
+  });
+
+  document.getElementById('btn-install').addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    if (outcome === 'accepted') {
+      document.getElementById('btn-install').textContent = '✅ Aplikasi Berhasil Diinstall!';
+      document.getElementById('btn-install').style.background = '#0A5C3A';
     }
-  }
+  });
 
-  function showIOS() {
-    document.getElementById('android-section').style.display = 'none';
-    document.getElementById('ios-guide').style.display = 'block';
-  }
-
-  function showSuccess() {
-    document.getElementById('android-section').style.display = 'none';
-    document.getElementById('ios-guide').style.display = 'none';
-    document.getElementById('success').style.display = 'block';
-  }
+  window.addEventListener('appinstalled', () => {
+    document.getElementById('btn-install').classList.remove('visible');
+  });
 </script>
 </body>
 </html>
-
-
