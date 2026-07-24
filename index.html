@@ -1055,7 +1055,7 @@ function loadDB(){
         delete db.subKegiatan;
         delete db.nextSubKegiatan;
         // ── Migrasi: tambahkan jadwal contoh jika masih kosong ──
-        if(!db.jadwal || !db.jadwal.length){
+        if(!localStorage.getItem('_restoring_backup') && (!db.jadwal || !db.jadwal.length)){
           db.jadwal=[
             {id:1,tanggal:'2026-07-03',lokasiId:1,maksud:'Pemantauan dan tindak lanjut PTM',lama:'1 (satu) hari',transport:'Kendaraan Pribadi',biayaTransport:150000,pegawaiUtamaId:1,pengikutIds:[2]},
             {id:2,tanggal:'2026-07-07',lokasiId:2,maksud:'Deteksi dini dan CKG di Masyarakat',lama:'1 (satu) hari',transport:'Kendaraan Pribadi',biayaTransport:150000,pegawaiUtamaId:3,pengikutIds:[4]},
@@ -1075,7 +1075,7 @@ function loadDB(){
 
   // ── Bersihkan ST yatim: ST yang jadwalId-nya merujuk ke jadwal yang sudah dihapus ──
   try{
-    if(db.suratTugas && db.jadwal){
+    if(!localStorage.getItem('_restoring_backup') && db.suratTugas && db.jadwal){
       const _jIds=new Set((db.jadwal||[]).map(j=>j.id));
       // Kumpulkan semua kombinasi tanggal+maksud+lokasiId dari jadwal yang masih ada
       const _jKeys=new Set((db.jadwal||[]).map(j=>`${j.tanggal}|${j.maksud}|${j.lokasiId}`));
@@ -1114,6 +1114,8 @@ function loadDB(){
   }catch(e){ console.error('Gagal migrasi nomorSuratManual:', e); }
 
   try{ _lastSavedSnapshot=JSON.stringify(db); }catch(e){}
+  // Hapus flag restore setelah loadDB selesai (flag hanya aktif 1x reload)
+  try{ localStorage.removeItem('_restoring_backup'); }catch(e){}
 }
 
 // ── Loading screen ──
@@ -10415,6 +10417,8 @@ function imporData(event){
 
       // Terapkan ke localStorage (gunakan sesi dari backup, tidak perlu override)
       localStorage.clear();
+      // Flag untuk loadDB() agar skip migrasi destruktif saat restore
+      localStorage.setItem('_restoring_backup','1');
       const gagal=[];
       Object.entries(snapshot).forEach(([k,v])=>{
         try{
@@ -10462,7 +10466,15 @@ function imporData(event){
 
       // Kunci saveDB agar tidak menimpa data backup sebelum reload selesai
       window._restoringBackup=true;
-      setTimeout(()=>location.reload(),1500);
+
+      // Hapus Service Worker & cache agar halaman reload dari server, bukan cache lama
+      const clearSWAndReload=()=>{
+        Promise.all([
+          navigator.serviceWorker?navigator.serviceWorker.getRegistrations().then(regs=>Promise.all(regs.map(r=>r.unregister()))):Promise.resolve(),
+          window.caches?caches.keys().then(keys=>Promise.all(keys.map(k=>caches.delete(k)))):Promise.resolve()
+        ]).finally(()=>location.reload());
+      };
+      setTimeout(clearSWAndReload,1500);
     } catch(err){
       statusEl.style.display='block';
       statusEl.style.background='#fde8e8';
