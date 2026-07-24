@@ -10411,15 +10411,9 @@ function imporData(event){
         return;
       }
 
-      // Simpan sesi aktif sekarang agar tidak perlu login ulang setelah restore
-      const currentSessionRaw=localStorage.getItem('st_app_session_v1');
-
-      // Terapkan ke localStorage
+      // Terapkan ke localStorage (gunakan sesi dari backup, tidak perlu override)
       localStorage.clear();
       Object.entries(snapshot).forEach(([k,v])=>localStorage.setItem(k,v));
-
-      // Kembalikan sesi aktif (prioritas: sesi yang sedang berjalan sebelum restore)
-      if(currentSessionRaw) localStorage.setItem('st_app_session_v1', currentSessionRaw);
 
       statusEl.style.display='block';
       statusEl.style.background='#dcfce7';
