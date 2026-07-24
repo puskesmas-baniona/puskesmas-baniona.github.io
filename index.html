@@ -16609,17 +16609,18 @@ restoreSession();
 
 <script>
 // ═══════════════════════════════════════════════════════════════
-// PWA - SERVICE WORKER REGISTRATION
+// PWA - SERVICE WORKER (dinonaktifkan untuk mencegah cache lama
+// mengintervensi proses restore backup)
 // ═══════════════════════════════════════════════════════════════
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function () {
-    navigator.serviceWorker.register('/sw.js')
-      .then(function (reg) {
-        console.log('✅ Service Worker terdaftar:', reg.scope);
-      })
-      .catch(function (err) {
-        console.warn('❌ Service Worker gagal:', err);
-      });
+    // Hapus semua SW dan cache yang terdaftar
+    navigator.serviceWorker.getRegistrations().then(function(regs){
+      regs.forEach(function(r){ r.unregister(); });
+    });
+    if(window.caches) caches.keys().then(function(keys){
+      keys.forEach(function(k){ caches.delete(k); });
+    });
   });
 }
 </script>
