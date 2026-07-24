@@ -10413,13 +10413,50 @@ function imporData(event){
 
       // Terapkan ke localStorage (gunakan sesi dari backup, tidak perlu override)
       localStorage.clear();
-      Object.entries(snapshot).forEach(([k,v])=>localStorage.setItem(k,v));
+      const gagal=[];
+      Object.entries(snapshot).forEach(([k,v])=>{
+        try{
+          localStorage.setItem(k,v);
+        }catch(writeErr){
+          gagal.push(k);
+        }
+      });
+
+      // Verifikasi: pastikan st_app_db_v2 benar-benar tersimpan dan terbaca
+      let verifikasiOk=false;
+      try{
+        const cek=localStorage.getItem('st_app_db_v2');
+        if(cek){
+          const parsed=JSON.parse(cek);
+          if(parsed && Array.isArray(parsed.pegawai) && parsed.pegawai.length>0){
+            verifikasiOk=true;
+          }
+        }
+      }catch(vErr){}
+
+      if(!verifikasiOk){
+        throw new Error(
+          'Data berhasil ditulis ke localStorage, tetapi verifikasi gagal — '+
+          'kemungkinan kuota penyimpanan browser penuh atau data korup.\n\n'+
+          'Coba: buka Pengaturan browser → Hapus data situs lain yang tidak perlu, lalu coba restore lagi.'
+        );
+      }
+
+      if(gagal.length){
+        statusEl.style.display='block';
+        statusEl.style.background='#fef9c3';
+        statusEl.style.color='#92400e';
+        statusEl.style.border='1px solid #fde68a';
+        statusEl.innerHTML='⚠️ Restore sebagian berhasil, tetapi '+gagal.length+' key gagal ditulis: <b>'+gagal.join(', ')+'</b><br>Data utama (pegawai, lokasi, surat tugas) sudah tersimpan. Halaman akan dimuat ulang…';
+        setTimeout(()=>location.reload(),2500);
+        return;
+      }
 
       statusEl.style.display='block';
       statusEl.style.background='#dcfce7';
       statusEl.style.color='#15803d';
       statusEl.style.border='1px solid #86efac';
-      statusEl.innerHTML='✅ Data berhasil dipulihkan! Halaman akan dimuat ulang…';
+      statusEl.innerHTML='✅ Data berhasil dipulihkan! ('+keys.length+' item) Halaman akan dimuat ulang…';
 
       setTimeout(()=>location.reload(),1500);
     } catch(err){
