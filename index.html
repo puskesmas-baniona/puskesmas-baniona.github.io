@@ -11,6 +11,24 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="PKM BO">
 <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+  const _fbConfig = {
+    apiKey: "AIzaSyBU2jcascYdaPNhX55K_DnkCe0NYFAsE3M",
+    authDomain: "pkm-baniona.firebaseapp.com",
+    projectId: "pkm-baniona",
+    storageBucket: "pkm-baniona.firebasestorage.app",
+    messagingSenderId: "926618783335",
+    appId: "1:926618783335:web:5d9d750ceb56767f338ec2",
+    measurementId: "G-18MRGRD2Z0"
+  };
+  firebase.initializeApp(_fbConfig);
+  window._fbDb = firebase.firestore();
+  window._FB_DOC = window._fbDb.collection('puskesmas-baniona').doc('data-utama');
+  console.log('[Firebase] Terhubung ke Firestore ✅');
+</script>
 <!-- SheetJS for Excel parsing -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
@@ -1010,50 +1028,106 @@ function saveDB(){
       if(snapshot===_lastSavedSnapshot) return;
       const ind=document.getElementById('save-indicator');
       if(ind){ ind.className='saving'; ind.innerHTML='⏳ Menyimpan…'; }
+      // Simpan ke localStorage sebagai cache offline
       localStorage.setItem(DB_KEY, snapshot);
       _lastSavedSnapshot=snapshot;
-      if(ind){
-        ind.className='saved'; ind.innerHTML='✅ Tersimpan';
-        setTimeout(()=>{ ind.className=''; ind.innerHTML=''; },2500);
+      // Simpan ke Firestore (realtime sync antar perangkat)
+      if(window._FB_DOC){
+        window._FB_DOC.set({ data: snapshot, updatedAt: new Date().toISOString() })
+          .then(()=>{
+            console.log('[Firebase] Data tersimpan ke Firestore ✅');
+            if(ind){
+              ind.className='saved'; ind.innerHTML='✅ Tersimpan';
+              setTimeout(()=>{ ind.className=''; ind.innerHTML=''; },2500);
+            }
+          })
+          .catch(err=>{
+            console.error('[Firebase] Gagal simpan ke Firestore:', err);
+            // Tetap anggap tersimpan karena sudah ada di localStorage
+            if(ind){
+              ind.className='saved'; ind.innerHTML='✅ Tersimpan (lokal)';
+              setTimeout(()=>{ ind.className=''; ind.innerHTML=''; },2500);
+            }
+          });
+      } else {
+        if(ind){
+          ind.className='saved'; ind.innerHTML='✅ Tersimpan';
+          setTimeout(()=>{ ind.className=''; ind.innerHTML=''; },2500);
+        }
       }
     }catch(e){
-      console.error('Gagal menyimpan data ke localStorage:', e);
+      console.error('Gagal menyimpan data:', e);
       const ind=document.getElementById('save-indicator');
       if(ind){ ind.className=''; ind.innerHTML=''; }
     }
   },600);
 }
 
+function _applyMigrasi(parsed){
+  // ── Migrasi: tambahkan lokasi Sekolah jika belum ada ──
+  const defaultSekolah=[
+    {id:5,nama:'SDN Oyangbarang',desa:'Oyangbarang',kecamatan:'Ile Bura',pimpinan:'Kepala Sekolah SDN Oyangbarang',jabPimpinan:'Kepala Sekolah',nipPimpinan:'-',jenis:'Sekolah'},
+    {id:6,nama:'SDN Kawela',desa:'Kawela',kecamatan:'Ile Bura',pimpinan:'Kepala Sekolah SDN Kawela',jabPimpinan:'Kepala Sekolah',nipPimpinan:'-',jenis:'Sekolah'},
+    {id:7,nama:'SMPN 1 Ile Bura',desa:'Ile Padung',kecamatan:'Ile Bura',pimpinan:'Kepala Sekolah SMPN 1 Ile Bura',jabPimpinan:'Kepala Sekolah',nipPimpinan:'-',jenis:'Sekolah'},
+  ];
+  defaultSekolah.forEach(s=>{
+    if(!parsed.lokasi.find(l=>l.id===s.id)) parsed.lokasi.push(s);
+  });
+  if(!parsed.nextLok || parsed.nextLok < 8) parsed.nextLok=8;
+  if(!parsed.jenisKegiatan) parsed.jenisKegiatan=[];
+  if(!parsed.nextJenisKegiatan) parsed.nextJenisKegiatan=(parsed.jenisKegiatan.reduce((m,x)=>x.id>m?x.id:m,0))+1;
+  if(parsed.subKegiatan && parsed.subKegiatan.length){
+    parsed.subKegiatan.forEach(function(sub){
+      var indukKeg=(parsed.jenisKegiatan||[]).find(function(k){return k.id===sub.kegId;});
+      var namaGabung=indukKeg?(indukKeg.nama+' - '+sub.nama):sub.nama;
+      parsed.jenisKegiatan.push({id:parsed.nextJenisKegiatan++,nama:namaGabung});
+    });
+  }
+  delete parsed.subKegiatan;
+  delete parsed.nextSubKegiatan;
+  if(!parsed.lpdList) parsed.lpdList=[];
+  return parsed;
+}
+
 function loadDB(){
+  // Coba load dari Firestore dulu (sumber utama realtime)
+  if(window._FB_DOC){
+    window._FB_DOC.get().then(docSnap=>{
+      if(docSnap.exists){
+        try{
+          const parsed=JSON.parse(docSnap.data().data);
+          if(parsed && Array.isArray(parsed.pegawai) && Array.isArray(parsed.lokasi)){
+            db=_applyMigrasi(parsed);
+            // Update localStorage sebagai cache offline
+            localStorage.setItem(DB_KEY, JSON.stringify(db));
+            _lastSavedSnapshot=JSON.stringify(db);
+            console.log('[Firebase] Data dimuat dari Firestore ✅');
+            // Render ulang UI jika sudah tampil
+            try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
+          }
+        }catch(e){ console.error('[Firebase] Gagal parse data Firestore:', e); }
+      } else {
+        console.log('[Firebase] Dokumen belum ada di Firestore, pakai localStorage');
+        // Jika ada data lokal, upload ke Firestore sekarang
+        const raw=localStorage.getItem(DB_KEY);
+        if(raw && window._FB_DOC){
+          window._FB_DOC.set({ data: raw, updatedAt: new Date().toISOString() })
+            .then(()=>console.log('[Firebase] Data lokal diupload ke Firestore ✅'))
+            .catch(e=>console.error('[Firebase] Gagal upload:', e));
+        }
+      }
+    }).catch(err=>{
+      console.warn('[Firebase] Gagal ambil dari Firestore, pakai localStorage:', err);
+    });
+  }
+
+  // Langsung load dari localStorage sebagai tampilan awal (cepat, sebelum Firestore balas)
   try{
     const raw=localStorage.getItem(DB_KEY);
     if(raw){
       const parsed=JSON.parse(raw);
       if(parsed && Array.isArray(parsed.pegawai) && Array.isArray(parsed.lokasi)){
-        db=parsed;
-        // ── Migrasi: tambahkan lokasi Sekolah jika belum ada ──
-        const defaultSekolah=[
-          {id:5,nama:'SDN Oyangbarang',desa:'Oyangbarang',kecamatan:'Ile Bura',pimpinan:'Kepala Sekolah SDN Oyangbarang',jabPimpinan:'Kepala Sekolah',nipPimpinan:'-',jenis:'Sekolah'},
-          {id:6,nama:'SDN Kawela',desa:'Kawela',kecamatan:'Ile Bura',pimpinan:'Kepala Sekolah SDN Kawela',jabPimpinan:'Kepala Sekolah',nipPimpinan:'-',jenis:'Sekolah'},
-          {id:7,nama:'SMPN 1 Ile Bura',desa:'Ile Padung',kecamatan:'Ile Bura',pimpinan:'Kepala Sekolah SMPN 1 Ile Bura',jabPimpinan:'Kepala Sekolah',nipPimpinan:'-',jenis:'Sekolah'},
-        ];
-        defaultSekolah.forEach(s=>{
-          if(!db.lokasi.find(l=>l.id===s.id)) db.lokasi.push(s);
-        });
-        if(!db.nextLok || db.nextLok < 8) db.nextLok=8;
-        // ── Migrasi: inisialisasi jenisKegiatan jika belum ada ──
-        if(!db.jenisKegiatan) db.jenisKegiatan=[];
-        if(!db.nextJenisKegiatan) db.nextJenisKegiatan=(db.jenisKegiatan.reduce((m,x)=>x.id>m?x.id:m,0))+1;
-        // ── Migrasi: ratakan subKegiatan lama (jika ada) ke jenisKegiatan, lalu hapus struktur sub kegiatan ──
-        if(db.subKegiatan && db.subKegiatan.length){
-          db.subKegiatan.forEach(function(sub){
-            var indukKeg=(db.jenisKegiatan||[]).find(function(k){return k.id===sub.kegId;});
-            var namaGabung=indukKeg?(indukKeg.nama+' - '+sub.nama):sub.nama;
-            db.jenisKegiatan.push({id:db.nextJenisKegiatan++,nama:namaGabung});
-          });
-        }
-        delete db.subKegiatan;
-        delete db.nextSubKegiatan;
+        db=_applyMigrasi(parsed);
         // ── Migrasi: tambahkan jadwal contoh jika masih kosong ──
         if(!localStorage.getItem('_restoring_backup') && (!db.jadwal || !db.jadwal.length)){
           db.jadwal=[
@@ -1067,8 +1141,6 @@ function loadDB(){
           ];
           db.nextJadwal=8;
         }
-        // ── Migrasi: lpdList ──
-        if(!db.lpdList) db.lpdList=[];
       }
     }
   }catch(e){ console.error('Gagal memuat data tersimpan:', e); }
@@ -1145,6 +1217,42 @@ startLoading();
 loadDB();
 
 // ═══════════════════════════════════════════════
+// FIREBASE REALTIME LISTENER
+// Mendengarkan perubahan dari Firestore secara realtime.
+// Jika ada perubahan dari perangkat lain, db diperbarui otomatis.
+// ═══════════════════════════════════════════════
+(function setupFirebaseListener(){
+  if(!window._FB_DOC) return;
+  let _isFirstSnapshot=true;
+  window._FB_DOC.onSnapshot(docSnap=>{
+    // Lewati snapshot pertama (sudah ditangani loadDB)
+    if(_isFirstSnapshot){ _isFirstSnapshot=false; return; }
+    if(!docSnap.exists) return;
+    try{
+      const parsed=JSON.parse(docSnap.data().data);
+      if(!parsed || !Array.isArray(parsed.pegawai)) return;
+      const incomingSnap=JSON.stringify(parsed);
+      // Hanya update jika data dari Firestore berbeda dengan yang ada sekarang
+      if(incomingSnap===_lastSavedSnapshot) return;
+      db=_applyMigrasi(parsed);
+      localStorage.setItem(DB_KEY, JSON.stringify(db));
+      _lastSavedSnapshot=JSON.stringify(db);
+      console.log('[Firebase] Data diperbarui dari perangkat lain 🔄');
+      // Tampilkan notifikasi ke user
+      const ind=document.getElementById('save-indicator');
+      if(ind){
+        ind.className='saved'; ind.innerHTML='🔄 Disinkronkan';
+        setTimeout(()=>{ ind.className=''; ind.innerHTML=''; },3000);
+      }
+      // Render ulang UI
+      try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
+    }catch(e){ console.error('[Firebase] Error proses snapshot:', e); }
+  }, err=>{
+    console.error('[Firebase] Listener error:', err);
+  });
+})();
+
+// ═══════════════════════════════════════════════
 // AUTO-SAVE GLOBAL — memastikan SEMUA perubahan tersimpan otomatis
 // tanpa harus menunggu tombol "Simpan" di setiap form.
 // ═══════════════════════════════════════════════
@@ -1169,7 +1277,14 @@ loadDB();
   function flushSave(){
     try{
       clearTimeout(_saveTimer);
-      localStorage.setItem(DB_KEY, JSON.stringify(db));
+      const snapshot=JSON.stringify(db);
+      localStorage.setItem(DB_KEY, snapshot);
+      // Simpan ke Firestore saat halaman ditutup/disembunyikan
+      if(window._FB_DOC && snapshot!==_lastSavedSnapshot){
+        window._FB_DOC.set({ data: snapshot, updatedAt: new Date().toISOString() })
+          .catch(e=>console.error('[Firebase] flushSave gagal:', e));
+        _lastSavedSnapshot=snapshot;
+      }
     }catch(e){}
     // Juga paksa simpan data modul Presensi (punya skema penyimpanan & debounce sendiri)
     try{
