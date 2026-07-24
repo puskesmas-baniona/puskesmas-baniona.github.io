@@ -990,6 +990,8 @@ let _saveTimer=null;
 let _lastSavedSnapshot=null;
 
 function saveDB(){
+  // Jangan simpan saat sedang restore backup (mencegah data default menimpa backup)
+  if(window._restoringBackup) return;
   // Bersihkan ST yatim (jadwalnya sudah dihapus) sebelum menyimpan
   if(db.suratTugas&&db.jadwal){
     const _jadwalIds=new Set((db.jadwal||[]).map(j=>j.id));
@@ -10458,6 +10460,8 @@ function imporData(event){
       statusEl.style.border='1px solid #86efac';
       statusEl.innerHTML='✅ Data berhasil dipulihkan! ('+keys.length+' item) Halaman akan dimuat ulang…';
 
+      // Kunci saveDB agar tidak menimpa data backup sebelum reload selesai
+      window._restoringBackup=true;
       setTimeout(()=>location.reload(),1500);
     } catch(err){
       statusEl.style.display='block';
