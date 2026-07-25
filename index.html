@@ -2137,7 +2137,7 @@ function renderLokasi(){
 }
 function showEditLokasi(id){
   const l=id?db.lokasi.find(x=>x.id===id):null;
-  const jenisOpts=['Desa','Posyandu','Pustu','Polindes','Puskesmas Pembantu','Kantor Desa','Sekolah','Kantor Dinas','Rumah Sakit','Lainnya'];
+  const jenisOpts=['Desa','Dusun','Posyandu','Pustu','Polindes','Poskesdes','Puskesmas Pembantu','Kantor Desa','Sekolah','Kantor Dinas','Rumah Sakit','Lainnya'];
   document.getElementById('modal-box').style.maxWidth='520px';
   showModal(l?'✏️ Edit Lokasi':'📍 Tambah Lokasi',`
     <style>
@@ -2405,10 +2405,16 @@ function _simpanKegiatan(){
       }
     }
     _jkEditKegId=null;
+
   } else {
+    const sudahAda=db.jenisKegiatan.find(x=>x.nama.trim().toLowerCase()===n.toLowerCase());
+    if(sudahAda){ showToast(`⚠️ Jenis kegiatan "${n}" sudah ada!`,'error'); return; }
     db.jenisKegiatan.push({id:db.nextJenisKegiatan++,nama:n});
-    showToast('Jenis kegiatan ditambahkan ✓','success');
+    showToast('Jenis kegiatan ditambahkan \u2713','success');
   }
+
+
+
   saveDB(); _renderJKPanel();
   // Jika panel RPK sedang aktif di tab lain / masih ter-render, segarkan agar perubahan langsung terlihat.
   const rpkPanel=document.getElementById('panel-rpk');
@@ -2554,15 +2560,19 @@ function _konfirmasiImportJK(daftar, mode){
     db.nextJenisKegiatan=1;
   }
 
-  let addedKeg=0;
+  let addedKeg=0, skipKeg=0;
   daftar.forEach(nama=>{
+    // Lewati jika nama sudah ada (case-insensitive), kecuali mode ganti (sudah dikosongkan di atas)
+    const sudahAda=db.jenisKegiatan.find(x=>x.nama.trim().toLowerCase()===nama.toLowerCase());
+    if(sudahAda){ skipKeg++; return; }
     db.jenisKegiatan.push({id:db.nextJenisKegiatan++,nama:nama});
     addedKeg++;
   });
 
   saveDB();
   window._jkImportOpen=false;
-  showToast(`Import berhasil: ${addedKeg} jenis kegiatan ditambahkan ✓`,'success');
+  const pesanSkip=skipKeg>0?`, ${skipKeg} duplikat dilewati`:'';
+  showToast(`Import berhasil: ${addedKeg} jenis kegiatan ditambahkan${pesanSkip} ✓`,'success');
   _renderJKPanel();
 }
 
@@ -4766,9 +4776,17 @@ function genSPPD(d) {
     : `<span style="display:inline-block;min-width:30px">&nbsp;</span>${nomSPPDSuffix}`;
   const tahun    = new Date(d.tanggal + 'T00:00:00').getFullYear();
   const tmpBerangkat = peg.tempatBerangkat || 'UPTD Puskesmas Baniona';
-  // Tempat kedudukan mengikuti desa tempat berangkat (mis. "Pustu Kawela" -> kedudukan "Kawela")
-  const pustuMatch = tmpBerangkat.match(/^Pustu\s+(.+)$/i);
-  const tmpKedudukan = pustuMatch ? pustuMatch[1].trim() : 'Baniona';
+  // Tempat kedudukan: cari desa dari db.lokasi berdasarkan nama lokasi yang cocok dengan tempatBerangkat.
+  // Jika tidak ditemukan di db.lokasi, fallback: ambil bagian setelah prefiks fasilitas (Pustu, Polindes, dll).
+  // Jika tidak ada prefiks, default ke "Baniona".
+  let tmpKedudukan = 'Baniona';
+  const _lokKedudukan = (db.lokasi||[]).find(function(l){ return l.nama && l.nama.trim().toLowerCase()===tmpBerangkat.trim().toLowerCase(); });
+  if(_lokKedudukan && _lokKedudukan.desa){
+    tmpKedudukan = _lokKedudukan.desa.trim();
+  } else {
+    const _prefiksMatch = tmpBerangkat.match(/^(?:Pustu|Polindes|Poskesdes|Puskesmas Pembantu|Ponkesdes|Ponkestren|Posyandu|Kantor Desa|Dusun)\s+(.+)$/i);
+    if(_prefiksMatch) tmpKedudukan = _prefiksMatch[1].trim();
+  }
 
   // Saat pengikut >= 4, kurangi ukuran font dan padding agar muat 1 halaman tanpa mengubah format
   const banyak = pengikut.length >= 4;
@@ -6204,7 +6222,8 @@ function bukaEditJadwal(id, returnTo){
     window._rpkFilterState={
       desa:(document.getElementById('rpk-filter-desa')||{}).value||'',
       jenisLok:(document.getElementById('rpk-filter-jenis-lok')||{}).value||'',
-      jenisKeg:(document.getElementById('rpk-filter-jenis-keg')||{}).value||''
+      jenisKeg:(document.getElementById('rpk-filter-jenis-keg')||{}).value||'',
+      tanggal:(document.getElementById('rpk-filter-tanggal')||{}).value||''
     };
   }
   renderTambahJadwal(id);
@@ -7418,7 +7437,8 @@ function rpkSisipKegiatan(maksudEnc, lokasiId, transportEnc, lamaEnc){
   window._rpkFilterState={
     desa:(document.getElementById('rpk-filter-desa')||{}).value||'',
     jenisLok:(document.getElementById('rpk-filter-jenis-lok')||{}).value||'',
-    jenisKeg:(document.getElementById('rpk-filter-jenis-keg')||{}).value||''
+    jenisKeg:(document.getElementById('rpk-filter-jenis-keg')||{}).value||'',
+    tanggal:(document.getElementById('rpk-filter-tanggal')||{}).value||''
   };
   renderTambahJadwal(null);
 }
@@ -8026,6 +8046,12 @@ function renderRPK(){
         <label style="font-size:11px;color:#475569;white-space:nowrap;font-weight:500">Per Jenis Kegiatan:</label>
         <select id="rpk-filter-jenis-keg" onchange="rpkRefresh()" style="padding:5px 8px;border:1.5px solid #bae6fd;border-radius:6px;font-size:12px;min-width:160px;background:#fff">${jenisKegOpts}</select>
       </div>
+      <!-- Filter per Tanggal -->
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:11px;color:#475569;white-space:nowrap;font-weight:500">Per Tanggal:</label>
+        <input type="date" id="rpk-filter-tanggal" onchange="rpkRefresh()" style="padding:5px 8px;border:1.5px solid #bae6fd;border-radius:6px;font-size:12px;background:#fff;color:#334155;cursor:pointer">
+        <button onclick="document.getElementById('rpk-filter-tanggal').value='';rpkRefresh();" style="padding:3px 7px;background:none;border:1.3px solid #cbd5e1;border-radius:5px;color:#94a3b8;font-size:11px;cursor:pointer;line-height:1" title="Hapus filter tanggal">✕</button>
+      </div>
       <!-- Tombol Reset Filter -->
       <button onclick="rpkResetFilter()" style="margin-left:auto;padding:5px 12px;background:none;border:1.3px solid #94a3b8;border-radius:6px;color:#64748b;font-size:11px;font-weight:600;cursor:pointer" title="Hapus semua filter">✕ Reset</button>
     </div>
@@ -8040,9 +8066,11 @@ function renderRPK(){
       const rfd=document.getElementById('rpk-filter-desa');
       const rfjl=document.getElementById('rpk-filter-jenis-lok');
       const rfjk=document.getElementById('rpk-filter-jenis-keg');
+      const rft=document.getElementById('rpk-filter-tanggal');
       if(rfd) rfd.value=s.desa;
       if(rfjl) rfjl.value=s.jenisLok;
       if(rfjk) rfjk.value=s.jenisKeg;
+      if(rft && s.tanggal) rft.value=s.tanggal;
       rpkRefresh();
     },0);
   } else {
@@ -8059,6 +8087,7 @@ function rpkGetData(){
   const filterDesa=(document.getElementById('rpk-filter-desa')||{}).value||'';
   const filterJenisLok=(document.getElementById('rpk-filter-jenis-lok')||{}).value||'';
   const filterJenisKeg=decodeURIComponent((document.getElementById('rpk-filter-jenis-keg')||{}).value||'');
+  const filterTanggal=(document.getElementById('rpk-filter-tanggal')||{}).value||'';
 
   const filtered=(db.jadwal||[]).filter(j=>{
     // 1. Filter periode
@@ -8084,6 +8113,13 @@ function rpkGetData(){
     if(filterJenisKeg){
       if((j.maksud||'')!==filterJenisKeg) return false;
     }
+    // 5. Filter per tanggal tertentu
+    if(filterTanggal){
+      // Kegiatan bertipe disesuaikan tidak memiliki tanggal pasti → selalu disembunyikan saat filter tanggal aktif
+      if(tipe==='disesuaikan') return false;
+      const tglJadwal=tipe==='rentang'?(j.tanggalMulai||j.tanggal):j.tanggal;
+      if(tglJadwal!==filterTanggal) return false;
+    }
     return true;
   });
   // Kelompokkan per maksud (nama kegiatan)
@@ -8093,7 +8129,7 @@ function rpkGetData(){
     if(!kelompok[key]) kelompok[key]=[];
     kelompok[key].push(j);
   });
-  return {bulan,tahun,kelompok,filterDesa,filterJenisLok,filterJenisKeg};
+  return {bulan,tahun,kelompok,filterDesa,filterJenisLok,filterJenisKeg,filterTanggal};
 }
 
 // Reset semua filter RPK ke kondisi awal (tampilkan semua)
@@ -8101,9 +8137,11 @@ function rpkResetFilter(){
   const fd=document.getElementById('rpk-filter-desa');
   const fjl=document.getElementById('rpk-filter-jenis-lok');
   const fjk=document.getElementById('rpk-filter-jenis-keg');
+  const ft=document.getElementById('rpk-filter-tanggal');
   if(fd) fd.value='';
   if(fjl) fjl.value='';
   if(fjk) fjk.value='';
+  if(ft) ft.value='';
   rpkRefresh();
 }
 
@@ -8266,7 +8304,20 @@ function rpkPerbaruiData(){
 
 function rpkRefresh(){
   const wrap=document.getElementById('rpk-preview-wrap'); if(!wrap) return;
-  const {bulan,tahun,kelompok,filterDesa,filterJenisLok,filterJenisKeg}=rpkGetData();
+
+  // ── Reset filter tanggal jika tidak sesuai bulan/tahun aktif ───────────
+  const _elBulan2=document.getElementById('rpk-bulan');
+  const _elTahun2=document.getElementById('rpk-tahun');
+  const _elFtgl2=document.getElementById('rpk-filter-tanggal');
+  if(_elBulan2 && _elTahun2 && _elFtgl2 && _elFtgl2.value){
+    const _bln2=parseInt(_elBulan2.value);
+    const _thn2=parseInt(_elTahun2.value);
+    const _d2=new Date(_elFtgl2.value+'T00:00:00');
+    if(_d2.getMonth()+1!==_bln2 || _d2.getFullYear()!==_thn2) _elFtgl2.value='';
+  }
+  // ────────────────────────────────────────────────────────────────────────
+
+  const {bulan,tahun,kelompok,filterDesa,filterJenisLok,filterJenisKeg,filterTanggal}=rpkGetData();
   const keys=Object.keys(kelompok); // urutan sesuai input (kegiatan baru otomatis di bawah)
 
   // Susun label filter aktif
@@ -8274,6 +8325,11 @@ function rpkRefresh(){
   if(filterDesa) aktivFilters.push(`Desa: <b>${filterDesa}</b>`);
   if(filterJenisLok) aktivFilters.push(`Jenis Tempat: <b>${filterJenisLok}</b>`);
   if(filterJenisKeg) aktivFilters.push(`Kegiatan: <b>${filterJenisKeg}</b>`);
+  if(filterTanggal){
+    const _dFt=new Date(filterTanggal+'T00:00:00');
+    const _HARI_FT=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+    aktivFilters.push(`Tanggal: <b>${_dFt.getDate()} ${['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'][_dFt.getMonth()]} (${_HARI_FT[_dFt.getDay()]})</b>`);
+  }
   const filterInfoHTML=aktivFilters.length
     ? `<div style="margin-bottom:8px;padding:7px 14px;background:#fef9c3;border:1px solid #fde047;border-radius:6px;font-size:12px;color:#78350f">
         🔎 Filter aktif: ${aktivFilters.join(' · ')} &nbsp;
