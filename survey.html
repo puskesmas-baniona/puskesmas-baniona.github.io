@@ -312,17 +312,12 @@ async function kirimSurvei(e){
   UNSUR.forEach((u, i) => { payload[`u${i+1}_${u.label.replace(/\s/g,'_')}`] = nilaiPerUnsur[i]; });
 
   try {
-    if(APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbxQ1RCSjZUR_q5tPLmXJHo7o2DOmayxfeAkos9v9x55OUNguQpApn5NWcDV18xkQZDv/exec'){
-      // Mode demo — simulasi berhasil
-      await new Promise(r => setTimeout(r, 800));
-    } else {
-      await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-    }
+    await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
     tampilSukses();
   } catch(err) {
     btn.disabled = false;
