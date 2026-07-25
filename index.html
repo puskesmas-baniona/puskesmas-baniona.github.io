@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
-<head><!-- v20260723b_fix_lampiran_spacer -->
+<head><!-- v20260726b_fix_st_muncul_pegawai -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sistem Terpadu UPTD Puskesmas Baniona</title>
@@ -1976,7 +1976,7 @@ function renderDashboard(){
   const el=document.getElementById('panel-dashboard');
   const myST=currentUser.role==='admin'
     ?db.suratTugas.filter(s=>stAdaJadwal(s))
-    :db.suratTugas.filter(s=>s.dikirimAt&&stAdaJadwal(s)&&(s.pegawaiIds.includes(currentUser.pegawaiId)||s.pengikutIds.includes(currentUser.pegawaiId)));
+    :db.suratTugas.filter(s=>s.dikirimAt&&stAdaJadwal(s)&&((s.pegawaiIds||[]).some(x=>x==currentUser.pegawaiId)||(s.pengikutIds||[]).some(x=>x==currentUser.pegawaiId)));
 
   // Kartu identitas pegawai
   let identitasHTML='';
@@ -3412,7 +3412,7 @@ function simpanST(){
 // ═══════════════════════════════════════════════
 function renderRiwayat(){
   const pid=currentUser.pegawaiId;
-  const myST=db.suratTugas.filter(s=>s.dikirimAt&&stAdaJadwal(s)&&((s.pegawaiIds||[]).includes(pid)||(s.pengikutIds||[]).includes(pid)));
+  const myST=db.suratTugas.filter(s=>s.dikirimAt&&stAdaJadwal(s)&&((s.pegawaiIds||[]).some(x=>x==pid)||(s.pengikutIds||[]).some(x=>x==pid)));
   // Jadwal yang belum ada ST tapi pegawai ini terlibat
   const jadwalBelumST=(db.jadwal||[]).filter(j=>{
     const terlibat=(j.pegawaiUtamaId===pid)||(j.pengikutIds||[]).includes(pid);
@@ -3461,7 +3461,7 @@ function renderCetakSTPeg(){
   const selTahun=window._cetakSTPegTahun||now.getFullYear();
 
   // Kumpulkan tahun yang ada di data ST pegawai ini
-  const allMyST=db.suratTugas.filter(s=>s.dikirimAt&&stAdaJadwal(s)&&((s.pegawaiIds||[]).includes(pid)||(s.pengikutIds||[]).includes(pid)));
+  const allMyST=db.suratTugas.filter(s=>s.dikirimAt&&stAdaJadwal(s)&&((s.pegawaiIds||[]).some(x=>x==pid)||(s.pengikutIds||[]).some(x=>x==pid)));
   const tahunSet=new Set(allMyST.filter(s=>s.tanggal).map(s=>new Date(s.tanggal+'T00:00:00').getFullYear()));
   tahunSet.add(now.getFullYear());
   const tahunList=[...tahunSet].sort((a,b)=>b-a);
@@ -8214,6 +8214,7 @@ function rpkSetPagu(bulan,tahun){
 //      manual otomatis ikut diperbarui tanpa perlu edit-simpan ulang
 //   4. nomorSuratManual di Surat Tugas disinkronkan dari jadwal induknya
 // Pembaruan HANYA berlaku untuk jadwal & ST di bulan yang sedang dipilih di selector RPK.
+function normNip(n){ return n?String(n).replace(/\s+/g,''):''; }
 function rpkPerbaruiData(){
   const bulan=parseInt(document.getElementById('rpk-bulan')?document.getElementById('rpk-bulan').value:new Date().getMonth()+1);
   const tahun=parseInt(document.getElementById('rpk-tahun')?document.getElementById('rpk-tahun').value:new Date().getFullYear());
@@ -8352,11 +8353,17 @@ function rpkPerbaruiData(){
     if(!milikBulanIni) return;
 
     // 2a. Rebuild snapshotPegawai dari data pegawai terbaru
-    const semuaIds=[...(st.pegawaiIds||[]),...(st.pengikutIds||[])].filter(Boolean);
-    const snapshotBaru=buatSnapshotPegawai(semuaIds);
-    if(snapshotBaru.length){
-      st.snapshotPegawai=snapshotBaru;
-      totalSnap+=snapshotBaru.length;
+    // GUARD: hanya perbarui snapshot jika ST ini benar-benar milik bulan yang dipilih.
+    // ST bulan lain (misalnya Juni saat kita di Juli) TIDAK boleh disentuh.
+    const stBulanKeyCheck=st.tanggal?st.tanggal.slice(0,7):(st.jadwalId?(()=>{const _jj=(db.jadwal||[]).find(x=>x.id===st.jadwalId);return _jj&&_jj.tanggal?_jj.tanggal.slice(0,7):null;})():null);
+    const bolehUpdateSnap=!stBulanKeyCheck||stBulanKeyCheck===bulanKey;
+    if(bolehUpdateSnap){
+      const semuaIds=[...(st.pegawaiIds||[]),...(st.pengikutIds||[])].filter(Boolean);
+      const snapshotBaru=buatSnapshotPegawai(semuaIds);
+      if(snapshotBaru.length){
+        st.snapshotPegawai=snapshotBaru;
+        totalSnap+=snapshotBaru.length;
+      }
     }
 
     // 2b. Sinkronkan nomorSuratManual dari jadwal induk yang sudah diperbarui
