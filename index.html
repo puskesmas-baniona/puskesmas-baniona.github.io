@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
-<head><!-- v20260726e_warning_perbarui_bulan_lalu -->
+<head><!-- v20260726h_fix_kursor_cari_st -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sistem Terpadu UPTD Puskesmas Baniona</title>
@@ -1303,6 +1303,7 @@ loadDB();
 })();
 
 let currentUser=null, currentTab='admin', searchPeg='', searchST='', searchLok='';
+let _debounceST=null;
 let stFilterBulan=0, stFilterTahun=0; // 0 = semua bulan / semua tahun (filter "Semua Surat Tugas")
 let bayarFilterBulan=0, bayarFilterTahun=0; // 0 = semua bulan / semua tahun (filter "Daftar Bayar")
 
@@ -4170,12 +4171,22 @@ function stAdaJadwal(s){
 }
 
 function getFilteredST(){
+  // Buat index sekali di luar loop untuk performa
+  const jadwalMap={}; (db.jadwal||[]).forEach(j=>jadwalMap[j.id]=j);
+  const lokasiMap={}; (db.lokasi||[]).forEach(l=>lokasiMap[l.id]=l);
+  const _q=searchST.toLowerCase();
   return db.suratTugas.filter(s=>{
     // Sembunyikan ST yatim (jadwalnya sudah dihapus)
-    if(!stAdaJadwal(s)) return false;
-    const _q=searchST.toLowerCase();
-    const cocokCari=(s.nomorST||'').toLowerCase().includes(_q)||(db.lokasi.find(l=>l.id===s.lokasiId)||{nama:''}).nama.toLowerCase().includes(_q)||(s.maksud||'').toLowerCase().includes(_q);
-    if(!cocokCari) return false;
+    const j=s.jadwalId?jadwalMap[s.jadwalId]:null;
+    if(s.jadwalId&&!j) return false;
+    if(!s.jadwalId&&!(db.jadwal||[]).find(jj=>jj.tanggal===s.tanggal&&jj.maksud===s.maksud&&jj.lokasiId===s.lokasiId)) return false;
+    if(_q){
+      const _nCari=(s.nomorST||'')+' '+(j&&j.nomorSuratManual?j.nomorSuratManual:'')+(s.nomorSuratManual||'');
+      const _lokNama=(lokasiMap[s.lokasiId]||{nama:''}).nama;
+      const _pegCari=(s.snapshotPegawai||[]).map(x=>x.nama).join(' ');
+      const cocokCari=_nCari.toLowerCase().includes(_q)||_lokNama.toLowerCase().includes(_q)||(s.maksud||'').toLowerCase().includes(_q)||_pegCari.toLowerCase().includes(_q);
+      if(!cocokCari) return false;
+    }
     if(stFilterBulan||stFilterTahun){
       const d=s.tanggal?new Date(s.tanggal+'T00:00:00'):null;
       if(!d) return false;
@@ -4264,12 +4275,13 @@ function renderSemuaST(){
         }).join('')
       : filtered.map(baris).join('');
 
+  const _activeIdST=document.activeElement&&document.activeElement.id;
   document.getElementById('panel-semua-st').innerHTML=`
     <div class="card">
       <div class="card-header" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
         <h3>Semua Surat Tugas (${filtered.length})</h3>
         <div class="flex gap-2 items-center" style="flex-wrap:wrap">
-          <div class="search-bar"><span class="search-icon">🔍</span><input type="text" id="st-search-input" placeholder="Cari nomor/lokasi…" value="${searchST}" oninput="searchST=this.value;renderSemuaST()"/></div>
+          <div class="search-bar"><span class="search-icon">🔍</span><input type="text" id="st-search-input" placeholder="Cari nomor/lokasi…" value="${searchST}" oninput="searchST=this.value;clearTimeout(_debounceST);_debounceST=setTimeout(renderSemuaST,300)"/></div>
           <select onchange="stUbahFilterBulan(this.value)" style="padding:7px 10px;border:1.5px solid var(--line);border-radius:var(--radius);font-size:12px">${bulanOptsST}</select>
           <select onchange="stUbahFilterTahun(this.value)" style="padding:7px 10px;border:1.5px solid var(--line);border-radius:var(--radius);font-size:12px">${tahunOptsST}</select>
           <button class="btn btn-primary btn-sm" onclick="cetakSemuaST()" title="Cetak semua surat tugas yang tampil">🖨 Cetak Semua (${filtered.length})</button>
@@ -4283,8 +4295,7 @@ function renderSemuaST(){
         <tbody>${bodyHTML}</tbody>
       </table></div>
     </div>`;
-  const activeId=document.activeElement&&document.activeElement.id;
-  if(activeId==='st-search-input'){
+  if(_activeIdST==='st-search-input'){
     const inp=document.getElementById('st-search-input');
     if(inp){inp.focus();const vlen=inp.value.length;inp.setSelectionRange(vlen,vlen);}
   }
