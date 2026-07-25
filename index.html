@@ -2883,7 +2883,7 @@ function processImportFile(file){
           const password=String(r.PASSWORD||'').trim()||username;
           if(!nip||!nama||!username){skipped++;return;}
           usernameCount[username]=(usernameCount[username]||0)+1;
-          const existing=db.pegawai.find(p=>p.nip===nip);
+          const existing=db.pegawai.find(p=>p.nip===nip||p.nip.replace(/\s/g,'')===nip.replace(/\s/g,''));
           if(existing){
             Object.assign(existing,{nama,namaPanggilan,pangkat,jabatan,username,tempatBerangkat});
             if(password)existing.password=password;
@@ -4152,7 +4152,8 @@ function getFilteredST(){
   return db.suratTugas.filter(s=>{
     // Sembunyikan ST yatim (jadwalnya sudah dihapus)
     if(!stAdaJadwal(s)) return false;
-    const cocokCari=s.nomorST.toLowerCase().includes(searchST.toLowerCase())||(db.lokasi.find(l=>l.id===s.lokasiId)||{nama:''}).nama.toLowerCase().includes(searchST.toLowerCase())||s.maksud.toLowerCase().includes(searchST.toLowerCase());
+    const _q=searchST.toLowerCase();
+    const cocokCari=(s.nomorST||'').toLowerCase().includes(_q)||(db.lokasi.find(l=>l.id===s.lokasiId)||{nama:''}).nama.toLowerCase().includes(_q)||(s.maksud||'').toLowerCase().includes(_q);
     if(!cocokCari) return false;
     if(stFilterBulan||stFilterTahun){
       const d=s.tanggal?new Date(s.tanggal+'T00:00:00'):null;
@@ -8336,7 +8337,7 @@ function rpkPerbaruiData(){
       if(db.pegawai.find(p=>p.id===oldId)) return oldId;
       const snap=snapList2.find(x=>x.id===oldId);
       if(!snap||!snap.nip) return oldId;
-      return nipToNewId[snap.nip]||oldId;
+      return nipToNewId[normNip(snap.nip)]||oldId; // normalisasi spasi NIP lama
     };
     st.pegawaiIds=(st.pegawaiIds||[]).map(remapId2);
     st.pengikutIds=(st.pengikutIds||[]).map(remapId2);
@@ -8571,6 +8572,8 @@ function rpkRefresh(){
       // Kumpulkan semua snapshot dari sub-jadwal dalam grup ini (fallback jika pegawai dihapus lalu impor ulang dengan ID berbeda)
       const _allSnapshots=[];
       grup.forEach(j=>{ (j.snapshotPegawai||[]).forEach(sp=>{ if(!_allSnapshots.find(x=>x.id===sp.id)) _allSnapshots.push(sp); }); });
+      // Juga cek snapshot dari ST terkait (lebih lengkap)
+      grup.forEach(j=>{ const _sts=(db.suratTugas||[]).filter(s=>s.jadwalId===j.id); _sts.forEach(s=>{ (s.snapshotPegawai||[]).forEach(sp=>{ if(!_allSnapshots.find(x=>x.id===sp.id)) _allSnapshots.push(sp); }); }); });
       const findPegRPK=pid=>db.pegawai.find(x=>x.id===pid)||_allSnapshots.find(x=>x.id===pid)||null;
       let formattedPetugas='';
       orderedPids.forEach(({pid,tanggal})=>{
