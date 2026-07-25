@@ -2104,6 +2104,7 @@ function hapusSemuaPegawai(){
   if(!confirm(`Hapus SEMUA data pegawai (${db.pegawai.length} pegawai)? Tindakan ini tidak dapat dibatalkan.`))return;
   if(!confirm('Yakin sekali lagi? Semua data pegawai akan hilang permanen.'))return;
   db.pegawai=[];
+  db.nextPeg=1; // Reset ID counter agar ID pegawai mulai dari 1 saat impor ulang
   showToast('Semua data pegawai dihapus','error');
   renderPegawai();saveDB();
 }
@@ -2848,6 +2849,29 @@ function processImportFile(file){
         const rows=pegSheetObj.rows;
         let added=0,skipped=0,dupUsername=0;
         const usernameCount={};
+
+        // Kumpulkan semua ID pegawai yang direferensikan di jadwal & surat tugas
+        // agar kita bisa mempertahankan ID lama saat impor ulang pasca hapus semua
+        const usedPegawaiIds=new Set();
+        (db.jadwal||[]).forEach(j=>{
+          if(j.pegawaiUtamaId) usedPegawaiIds.add(j.pegawaiUtamaId);
+          (j.pengikutIds||[]).forEach(id=>usedPegawaiIds.add(id));
+        });
+        (db.suratTugas||[]).forEach(s=>{
+          (s.pegawaiIds||[]).forEach(id=>usedPegawaiIds.add(id));
+          (s.pengikutIds||[]).forEach(id=>usedPegawaiIds.add(id));
+        });
+
+        // Buat peta NIP → ID lama dari snapshotPegawai di jadwal/suratTugas
+        // supaya pegawai yang diimpor ulang mendapat ID yang sama
+        const nipToOldId={};
+        (db.jadwal||[]).forEach(j=>{
+          (j.snapshotPegawai||[]).forEach(sp=>{ if(sp.nip&&sp.id) nipToOldId[sp.nip]=sp.id; });
+        });
+        (db.suratTugas||[]).forEach(s=>{
+          (s.snapshotPegawai||[]).forEach(sp=>{ if(sp.nip&&sp.id) nipToOldId[sp.nip]=sp.id; });
+        });
+
         rows.forEach(r=>{
           const nip=String(r.NIP||'').trim();
           const nama=String(r.NAMA||'').trim();
@@ -2864,7 +2888,11 @@ function processImportFile(file){
             Object.assign(existing,{nama,namaPanggilan,pangkat,jabatan,username,tempatBerangkat});
             if(password)existing.password=password;
           } else {
-            db.pegawai.push({id:db.nextPeg++,nip,nama,namaPanggilan,pangkat,jabatan,username,password,tempatBerangkat});
+            // Gunakan ID lama jika NIP ini pernah direferensikan di jadwal/suratTugas
+            const oldId=nipToOldId[nip];
+            const assignedId=(oldId && !db.pegawai.find(p=>p.id===oldId)) ? oldId : db.nextPeg++;
+            if(assignedId>=db.nextPeg) db.nextPeg=assignedId+1;
+            db.pegawai.push({id:assignedId,nip,nama,namaPanggilan,pangkat,jabatan,username,password,tempatBerangkat});
             added++;
           }
         });
@@ -8256,6 +8284,65 @@ function rpkPerbaruiData(){
     }
   });
 
+  // ── LANGKAH KRITIS: Remap ID pegawai di jadwal & ST berdasarkan NIP ──────
+  // Jika pegawai pernah dihapus-semua lalu diimpor ulang, ID bisa berubah.
+  // Gunakan snapshotPegawai (yang menyimpan NIP + ID lama) untuk mencocokkan
+  // ke ID baru di db.pegawai, lalu perbarui semua referensi ID di jadwal.
+  // Bangun peta: nipLama → idBaru
+  const nipToNewId={};
+  (db.pegawai||[]).forEach(p=>{ if(p.nip) nipToNewId[p.nip]=p.id; });
+
+  let totalRemap=0;
+  jadwalBulan.forEach(j=>{
+    // Kumpulkan semua snapshot yang tersedia untuk jadwal ini
+    const snapList=[...(j.snapshotPegawai||[])];
+    // Juga ambil dari ST terkait (lebih andal karena ST selalu punya snapshot)
+    const stTerkait=(db.suratTugas||[]).filter(s=>s.jadwalId===j.id);
+    stTerkait.forEach(s=>{ (s.snapshotPegawai||[]).forEach(sp=>{ if(!snapList.find(x=>x.id===sp.id||x.nip===sp.nip)) snapList.push(sp); }); });
+
+    if(!snapList.length) return; // tidak ada snapshot → tidak bisa remap
+
+    // Fungsi: cari ID baru untuk ID lama via NIP dari snapshot
+    const remapId=oldId=>{
+      if(!oldId) return oldId;
+      if(db.pegawai.find(p=>p.id===oldId)) return oldId; // ID masih valid, tidak perlu remap
+      const snap=snapList.find(x=>x.id===oldId);
+      if(!snap||!snap.nip) return oldId;
+      const newId=nipToNewId[snap.nip];
+      return newId||oldId;
+    };
+
+    const newUtamaId=remapId(j.pegawaiUtamaId);
+    const newPengikutIds=(j.pengikutIds||[]).map(remapId);
+    if(newUtamaId!==j.pegawaiUtamaId||(j.pengikutIds||[]).some((id,i)=>id!==newPengikutIds[i])){
+      j.pegawaiUtamaId=newUtamaId;
+      j.pengikutIds=newPengikutIds;
+      // Perbarui juga snapshotPegawai jadwal
+      j.snapshotPegawai=buatSnapshotPegawai([newUtamaId,...newPengikutIds].filter(Boolean));
+      totalRemap++;
+    }
+  });
+
+  // Remap juga di Surat Tugas (pegawaiIds & pengikutIds)
+  (db.suratTugas||[]).forEach(st=>{
+    const milikBulanIni2=st.jadwalId
+      ? jadwalIds.has(st.jadwalId)
+      : (st.tanggal && st.tanggal.startsWith(bulanKey));
+    if(!milikBulanIni2) return;
+    const snapList2=[...(st.snapshotPegawai||[])];
+    if(!snapList2.length) return;
+    const remapId2=oldId=>{
+      if(!oldId) return oldId;
+      if(db.pegawai.find(p=>p.id===oldId)) return oldId;
+      const snap=snapList2.find(x=>x.id===oldId);
+      if(!snap||!snap.nip) return oldId;
+      return nipToNewId[snap.nip]||oldId;
+    };
+    st.pegawaiIds=(st.pegawaiIds||[]).map(remapId2);
+    st.pengikutIds=(st.pengikutIds||[]).map(remapId2);
+  });
+  // ─────────────────────────────────────────────────────────────────────────
+
   // 2. Perbarui Surat Tugas bulan ini
   (db.suratTugas||[]).forEach(st=>{
     const milikBulanIni=st.jadwalId
@@ -8294,9 +8381,10 @@ function rpkPerbaruiData(){
   });
 
   saveDB();
-  const pesanNomor=totalNomor>0?`, ${totalNomor} nomor surat manual dikoreksi`:'';
+  const pesanNomor=totalNomor>0?`, ${totalNomor} nomor surat dikoreksi`:'';
+  const pesanRemap=totalRemap>0?`, ${totalRemap} referensi ID pegawai diperbaiki`:'';
   showToast(
-    `✓ Perbarui Data selesai — ${totalST} ST diperbarui, ${totalSnap} snapshot pegawai disinkronkan, ${totalLokasi} referensi lokasi diperbarui${pesanNomor}`,
+    `✓ Perbarui Data selesai — ${totalST} ST diperbarui, ${totalSnap} snapshot disinkronkan, ${totalLokasi} lokasi diperbarui${pesanNomor}${pesanRemap}`,
     'success'
   );
   rpkRefresh();
@@ -8480,9 +8568,13 @@ function rpkRefresh(){
       pengikutAsliIds.forEach(pid=>{ if(pid&&!seenPids.has(pid)){ seenPids.add(pid); orderedPids.push({pid,tanggal:j0ref.tanggal}); } });
       // Fallback: tambahkan siapa pun yang belum masuk (dari sub-jadwal lain)
       grup.forEach(j=>{ [j.pegawaiUtamaId,...(j.pengikutIds||[])].forEach(pid=>{ if(pid&&!seenPids.has(pid)){ seenPids.add(pid); orderedPids.push({pid,tanggal:j.tanggal}); } }); });
+      // Kumpulkan semua snapshot dari sub-jadwal dalam grup ini (fallback jika pegawai dihapus lalu impor ulang dengan ID berbeda)
+      const _allSnapshots=[];
+      grup.forEach(j=>{ (j.snapshotPegawai||[]).forEach(sp=>{ if(!_allSnapshots.find(x=>x.id===sp.id)) _allSnapshots.push(sp); }); });
+      const findPegRPK=pid=>db.pegawai.find(x=>x.id===pid)||_allSnapshots.find(x=>x.id===pid)||null;
       let formattedPetugas='';
       orderedPids.forEach(({pid,tanggal})=>{
-        const p=db.pegawai.find(x=>x.id===pid);
+        const p=findPegRPK(pid);
         const nama=p?(p.namaPanggilan||p.nama.split(' ')[0]):'-';
         const isDup=pegawaiDuplikat.has(`${pid}_${tanggal}`);
         if(formattedPetugas) formattedPetugas+=', ';
