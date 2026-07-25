@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
-<head><!-- v20260726b_fix_st_muncul_pegawai -->
+<head><!-- v20260726e_warning_perbarui_bulan_lalu -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sistem Terpadu UPTD Puskesmas Baniona</title>
@@ -1974,7 +1974,7 @@ function navigateBackTo(panel){
 // ═══════════════════════════════════════════════
 function renderDashboard(){
   const el=document.getElementById('panel-dashboard');
-  const myST=currentUser.role==='admin'
+  const myST=(currentUser.role==='admin'||currentUser.role==='manajemen')
     ?db.suratTugas.filter(s=>stAdaJadwal(s))
     :db.suratTugas.filter(s=>s.dikirimAt&&stAdaJadwal(s)&&((s.pegawaiIds||[]).some(x=>x==currentUser.pegawaiId)||(s.pengikutIds||[]).some(x=>x==currentUser.pegawaiId)));
 
@@ -2089,8 +2089,29 @@ function simpanPegawai(id){
   if(!nama||!nip||!pangkat||!jabatan||!username){showToast('Semua field wajib diisi!','error');return;}
   if(id){
     const p=db.pegawai.find(x=>x.id==id);
+    // Simpan nilai lama sebelum diubah, untuk update snapshot secara selektif
+    const nilaiLama={nama:p.nama,nip:p.nip,pangkat:p.pangkat,jabatan:p.jabatan,namaPanggilan:p.namaPanggilan,tempatBerangkat:p.tempatBerangkat};
     Object.assign(p,{nama,nip,pangkat,jabatan,username,namaPanggilan,tempatBerangkat});
     if(password)p.password=password;
+    // Update snapshot di ST bulan ini & mendatang (bukan bulan lalu)
+    // Aturan: snapshot bulan lalu TIDAK disentuh sama sekali (pangkat lama tetap terjaga)
+    // Snapshot bulan ini/mendatang: update nama/nip/tempatBerangkat tapi BUKAN pangkat/jabatan jika bulan lalu
+    const bulanIni=new Date();
+    const bulanIniKey=`${bulanIni.getFullYear()}-${String(bulanIni.getMonth()+1).padStart(2,'0')}`;
+    (db.suratTugas||[]).forEach(st=>{
+      if(!Array.isArray(st.snapshotPegawai)) return;
+      const snap=st.snapshotPegawai.find(x=>x.id==id);
+      if(!snap) return;
+      // Tentukan bulan ST
+      const stKey=st.tanggal?st.tanggal.slice(0,7):(st.jadwalId?(()=>{const j=(db.jadwal||[]).find(x=>x.id===st.jadwalId);return j&&j.tanggal?j.tanggal.slice(0,7):null;})():null);
+      if(stKey && stKey<bulanIniKey){
+        // Bulan lalu: hanya update nama & NIP (bukan pangkat/jabatan)
+        snap.nama=nama; snap.namaPanggilan=namaPanggilan; snap.nip=nip; snap.tempatBerangkat=tempatBerangkat;
+      } else {
+        // Bulan ini/mendatang: update semua
+        Object.assign(snap,{nama,namaPanggilan,nip,pangkat,jabatan,tempatBerangkat});
+      }
+    });
     showToast('Pegawai diperbarui ✓','success');
   } else {
     db.pegawai.push({id:db.nextPeg++,nip,nama,namaPanggilan,pangkat,jabatan,username,password:password||username,tempatBerangkat});
@@ -8237,14 +8258,21 @@ function rpkPerbaruiData(){
     return;
   }
 
+  const bulanSekarang=new Date();
+  const bulanSekarangKey=`${bulanSekarang.getFullYear()}-${String(bulanSekarang.getMonth()+1).padStart(2,'0')}`;
+  const adalaHBulanLalu=bulanKey<bulanSekarangKey;
+  const peringatanBulanLalu=adalaHBulanLalu
+    ? `\n⚠️ PERHATIAN: Bulan ${nmBulan} ${tahun} adalah bulan LALU.\nTindakan ini akan menimpa pangkat & jabatan di Surat Tugas bulan tersebut\ndengan data pegawai yang berlaku SAAT INI.\nJika ada pegawai yang naik pangkat setelah bulan itu, ST lama akan ikut berubah!\n`
+    : '';
   if(!confirm(
     `Perbarui Data — ${nmBulan} ${tahun}\n\n` +
     `Tindakan ini akan menyinkronkan:\n` +
     `• Data pegawai terbaru (nama, NIP, pangkat, jabatan, tempat berangkat)\n` +
     `• Nama lokasi kegiatan terbaru\n` +
     `• Nomor surat (input manual) — suffix bulan/tahun dikoreksi sesuai tanggal jadwal\n\n` +
-    `ke ${jadwalBulan.length} jadwal & semua Surat Tugas bulan ${nmBulan} ${tahun}.\n\n` +
-    `Data di luar bulan ini TIDAK berubah.\nLanjutkan?`
+    `ke ${jadwalBulan.length} jadwal & semua Surat Tugas bulan ${nmBulan} ${tahun}.\n` +
+    peringatanBulanLalu +
+    `\nData di luar bulan ini TIDAK berubah.\nLanjutkan?`
   )) return;
 
   const jadwalIds=new Set(jadwalBulan.map(j=>j.id));
