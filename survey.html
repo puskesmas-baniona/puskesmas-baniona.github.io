@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Survei Kepuasan Masyarakat — Puskesmas Baniona</title>
+<meta name="description" content="Survei Indeks Kepuasan Masyarakat UPTD Puskesmas Baniona, Flores Timur">
+<style>
+  /* ── Token ── */
+  :root{
+    --teal:#1a6b6b; --teal-dk:#0f4444; --teal-lt:#e6f4f4;
+    --gold:#c8960c; --gold-lt:#fdf6e3;
+    --ink:#1a2e2e; --muted:#5a7070; --line:#d1dede;
+    --bg:#f5fafa; --white:#ffffff;
+    --success:#16a34a; --danger:#dc2626;
+    --r:14px; --r-sm:8px;
+    --shadow:0 2px 12px rgba(15,68,68,.10);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;padding-bottom:60px}
+
+  /* ── Header ── */
+  .header{background:linear-gradient(135deg,var(--teal-dk) 0%,var(--teal) 100%);color:#fff;padding:28px 20px 36px;text-align:center;position:relative;overflow:hidden}
+  .header::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Ccircle cx='30' cy='30' r='20'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat}
+  .header-logo{width:68px;height:68px;background:rgba(255,255,255,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:32px;border:2px solid rgba(255,255,255,.3)}
+  .header h1{font-size:20px;font-weight:700;letter-spacing:.3px;position:relative}
+  .header p{font-size:13px;opacity:.8;margin-top:6px;position:relative}
+  .header-badge{display:inline-block;background:var(--gold);color:#fff;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:20px;margin-top:10px;position:relative}
+
+  /* ── Card ── */
+  .card{background:var(--white);border-radius:var(--r);box-shadow:var(--shadow);margin:0 auto;max-width:640px;padding:24px 22px;margin-top:20px}
+  .card-first{margin-top:-16px}
+
+  /* ── Info box ── */
+  .info-box{background:var(--teal-lt);border-left:4px solid var(--teal);border-radius:var(--r-sm);padding:12px 16px;font-size:13px;color:var(--teal-dk);line-height:1.6;margin-bottom:20px}
+  .info-box strong{display:block;margin-bottom:4px;font-size:14px}
+
+  /* ── Pertanyaan ── */
+  .pertanyaan{margin-bottom:26px}
+  .pertanyaan:last-child{margin-bottom:0}
+  .p-nomor{font-size:10px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+  .p-teks{font-size:15px;font-weight:600;color:var(--ink);line-height:1.4;margin-bottom:12px}
+
+  /* ── Pilihan (emoji scale) ── */
+  .pilihan-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .pilihan-label{cursor:pointer;text-align:center}
+  .pilihan-label input{display:none}
+  .pilihan-box{border:2px solid var(--line);border-radius:var(--r-sm);padding:10px 6px;transition:all .18s;display:flex;flex-direction:column;align-items:center;gap:5px;background:var(--white)}
+  .pilihan-box .emoji{font-size:24px;line-height:1}
+  .pilihan-box .val-label{font-size:11px;color:var(--muted);font-weight:600;line-height:1.2}
+  .pilihan-label input:checked + .pilihan-box{border-color:var(--teal);background:var(--teal-lt)}
+  .pilihan-label input:checked + .pilihan-box .val-label{color:var(--teal-dk)}
+  .pilihan-label:hover .pilihan-box{border-color:var(--teal);background:var(--teal-lt)}
+
+  /* ── Field teks ── */
+  .field-group{margin-bottom:16px}
+  .field-label{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:block}
+  .field-input,.field-select,.field-textarea{width:100%;padding:11px 14px;border:1.5px solid var(--line);border-radius:var(--r-sm);font-size:14px;font-family:inherit;color:var(--ink);background:var(--white);transition:border-color .2s,box-shadow .2s;-webkit-appearance:none}
+  .field-input:focus,.field-select:focus,.field-textarea:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px rgba(26,107,107,.1)}
+  .field-textarea{resize:vertical;min-height:80px}
+  .field-hint{font-size:11px;color:var(--muted);margin-top:5px}
+
+  /* ── Tombol kirim ── */
+  .btn-kirim{width:100%;padding:15px;background:var(--teal);color:#fff;font-size:16px;font-weight:700;border:none;border-radius:var(--r);cursor:pointer;transition:background .2s,transform .1s;letter-spacing:.3px}
+  .btn-kirim:hover{background:var(--teal-dk)}
+  .btn-kirim:active{transform:scale(.98)}
+  .btn-kirim:disabled{background:var(--muted);cursor:not-allowed}
+
+  /* ── Progress ── */
+  .progress-wrap{height:4px;background:var(--line);border-radius:2px;margin-bottom:20px;overflow:hidden}
+  .progress-bar{height:100%;background:linear-gradient(90deg,var(--teal),var(--gold));border-radius:2px;transition:width .3s}
+
+  /* ── Sukses ── */
+  #layar-sukses{display:none;text-align:center;padding:40px 20px}
+  .sukses-icon{font-size:64px;margin-bottom:16px}
+  .sukses-judul{font-size:22px;font-weight:700;color:var(--teal-dk);margin-bottom:8px}
+  .sukses-teks{font-size:14px;color:var(--muted);line-height:1.6;max-width:360px;margin:0 auto}
+  .btn-ulang{margin-top:24px;padding:11px 28px;background:var(--teal-lt);color:var(--teal-dk);font-size:14px;font-weight:600;border:none;border-radius:var(--r-sm);cursor:pointer}
+
+  /* ── Error state ── */
+  .error-msg{font-size:12px;color:var(--danger);margin-top:5px;display:none}
+  .pertanyaan.has-error .pilihan-box{border-color:var(--line)}
+  .pertanyaan.has-error .error-msg{display:block}
+
+  /* ── Footer ── */
+  .footer{text-align:center;font-size:11px;color:var(--muted);margin-top:28px;padding:0 20px}
+
+  @media(max-width:480px){
+    .card{margin:16px 12px 0;padding:18px 14px}
+    .pilihan-grid{gap:6px}
+    .pilihan-box .emoji{font-size:20px}
+    .pilihan-box .val-label{font-size:10px}
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-logo">🏥</div>
+  <h1>Survei Kepuasan Masyarakat</h1>
+  <p>UPTD Puskesmas Baniona — Flores Timur</p>
+  <span class="header-badge">IKM · Permenpan RB No. 14/2017</span>
+</div>
+
+<div style="max-width:640px;margin:0 auto;padding:0 12px">
+
+  <!-- LAYAR SUKSES -->
+  <div id="layar-sukses" class="card card-first">
+    <div class="sukses-icon">✅</div>
+    <div class="sukses-judul">Terima Kasih!</div>
+    <div class="sukses-teks">Penilaian Anda sudah kami terima dan akan menjadi bahan evaluasi untuk meningkatkan pelayanan Puskesmas Baniona.</div>
+    <button class="btn-ulang" onclick="ulangSurvei()">Isi Survei Lagi</button>
+  </div>
+
+  <!-- FORM SURVEI -->
+  <form id="form-survei" onsubmit="kirimSurvei(event)">
+
+    <!-- INFO -->
+    <div class="card card-first">
+      <div class="info-box">
+        <strong>📋 Petunjuk Pengisian</strong>
+        Berikan penilaian jujur terhadap pelayanan yang Anda terima. Survei ini bersifat <b>anonim</b> — identitas Anda tidak wajib diisi. Hasil digunakan untuk meningkatkan kualitas layanan.
+      </div>
+
+      <!-- Progress -->
+      <div class="progress-wrap"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div>
+
+      <!-- Data responden (opsional) -->
+      <div class="field-group">
+        <label class="field-label">Jenis Kelamin <span style="color:var(--muted);font-weight:400">(opsional)</span></label>
+        <select class="field-select" id="f-jk">
+          <option value="">— Pilih —</option>
+          <option value="Laki-laki">Laki-laki</option>
+          <option value="Perempuan">Perempuan</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Usia <span style="color:var(--muted);font-weight:400">(opsional)</span></label>
+        <select class="field-select" id="f-usia">
+          <option value="">— Pilih —</option>
+          <option value="< 20 tahun">&lt; 20 tahun</option>
+          <option value="20–30 tahun">20–30 tahun</option>
+          <option value="31–40 tahun">31–40 tahun</option>
+          <option value="41–50 tahun">41–50 tahun</option>
+          <option value="> 50 tahun">&gt; 50 tahun</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Jenis Layanan yang Diterima</label>
+        <select class="field-select" id="f-layanan" required>
+          <option value="">— Pilih layanan —</option>
+          <option value="Poli Umum">Poli Umum</option>
+          <option value="Poli Gigi">Poli Gigi</option>
+          <option value="KIA / Kebidanan">KIA / Kebidanan</option>
+          <option value="Imunisasi">Imunisasi</option>
+          <option value="Laboratorium">Laboratorium</option>
+          <option value="Farmasi / Apotek">Farmasi / Apotek</option>
+          <option value="Pendaftaran / Loket">Pendaftaran / Loket</option>
+          <option value="Lainnya">Lainnya</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 9 UNSUR IKM -->
+    <div class="card" id="card-ikm">
+      <div id="pertanyaan-container"></div>
+    </div>
+
+    <!-- SARAN -->
+    <div class="card">
+      <div class="field-group" style="margin-bottom:0">
+        <label class="field-label">Saran / Masukan <span style="color:var(--muted);font-weight:400">(opsional)</span></label>
+        <textarea class="field-textarea" id="f-saran" placeholder="Tulis saran atau masukan Anda di sini…"></textarea>
+        <div class="field-hint">Saran Anda sangat berarti untuk perbaikan layanan kami.</div>
+      </div>
+    </div>
+
+    <!-- KIRIM -->
+    <div class="card" style="padding:20px 22px">
+      <button type="submit" class="btn-kirim" id="btn-kirim">Kirim Penilaian →</button>
+      <p style="text-align:center;font-size:12px;color:var(--muted);margin-top:10px">Data dikirim aman ke sistem kami</p>
+    </div>
+
+  </form>
+
+  <div class="footer">
+    Puskesmas Baniona · Flores Timur · NTT<br>
+    Survei IKM berdasarkan Permenpan RB No. 14 Tahun 2017
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// KONFIGURASI — ganti URL ini setelah deploy Apps Script
+// ═══════════════════════════════════════════════
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxQ1RCSjZUR_q5tPLmXJHo7o2DOmayxfeAkos9v9x55OUNguQpApn5NWcDV18xkQZDv/exec';
+
+// ═══════════════════════════════════════════════
+// 9 UNSUR IKM (Permenpan RB No. 14 Tahun 2017)
+// ═══════════════════════════════════════════════
+const UNSUR = [
+  { id:'u1', label:'Persyaratan',        teks:'Bagaimana kesesuaian persyaratan pelayanan dengan jenis pelayanannya?' },
+  { id:'u2', label:'Prosedur',           teks:'Bagaimana kemudahan prosedur pelayanan di puskesmas ini?' },
+  { id:'u3', label:'Waktu Pelayanan',    teks:'Bagaimana kecepatan waktu pelayanan yang diberikan?' },
+  { id:'u4', label:'Biaya / Tarif',      teks:'Bagaimana kesesuaian biaya / tarif yang ditetapkan?' },
+  { id:'u5', label:'Produk Layanan',     teks:'Bagaimana kesesuaian produk/hasil pelayanan yang diterima?' },
+  { id:'u6', label:'Kompetensi Petugas', teks:'Bagaimana kemampuan / kompetensi petugas dalam memberikan pelayanan?' },
+  { id:'u7', label:'Perilaku Petugas',   teks:'Bagaimana kesopanan dan keramahan petugas dalam melayani?' },
+  { id:'u8', label:'Sarana & Prasarana', teks:'Bagaimana kondisi sarana dan prasarana (ruang tunggu, toilet, dll)?' },
+  { id:'u9', label:'Penanganan Pengaduan', teks:'Bagaimana penanganan pengaduan, saran, dan masukan di puskesmas ini?' },
+];
+
+const PILIHAN = [
+  { nilai:1, label:'Tidak Baik',    emoji:'😞' },
+  { nilai:2, label:'Kurang Baik',   emoji:'😐' },
+  { nilai:3, label:'Baik',          emoji:'🙂' },
+  { nilai:4, label:'Sangat Baik',   emoji:'😄' },
+];
+
+// ═══════════════════════════════════════════════
+// RENDER PERTANYAAN
+// ═══════════════════════════════════════════════
+function renderPertanyaan(){
+  const container = document.getElementById('pertanyaan-container');
+  container.innerHTML = UNSUR.map((u, i) => `
+    <div class="pertanyaan" id="wrap-${u.id}">
+      <div class="p-nomor">Unsur ${i+1} — ${u.label}</div>
+      <div class="p-teks">${u.teks}</div>
+      <div class="pilihan-grid">
+        ${PILIHAN.map(p => `
+          <label class="pilihan-label">
+            <input type="radio" name="${u.id}" value="${p.nilai}" onchange="updateProgress()">
+            <div class="pilihan-box">
+              <span class="emoji">${p.emoji}</span>
+              <span class="val-label">${p.label}</span>
+            </div>
+          </label>
+        `).join('')}
+      </div>
+      <div class="error-msg">⚠ Mohon berikan penilaian untuk unsur ini.</div>
+    </div>
+  `).join('<hr style="border:none;border-top:1px solid var(--line);margin:20px 0">');
+}
+
+// ═══════════════════════════════════════════════
+// PROGRESS BAR
+// ═══════════════════════════════════════════════
+function updateProgress(){
+  const isi = UNSUR.filter(u => document.querySelector(`input[name="${u.id}"]:checked`)).length;
+  document.getElementById('progress-bar').style.width = (isi / UNSUR.length * 100) + '%';
+}
+
+// ═══════════════════════════════════════════════
+// VALIDASI
+// ═══════════════════════════════════════════════
+function validasi(){
+  let ok = true;
+  UNSUR.forEach(u => {
+    const wrap = document.getElementById('wrap-'+u.id);
+    const dipilih = document.querySelector(`input[name="${u.id}"]:checked`);
+    wrap.classList.toggle('has-error', !dipilih);
+    if(!dipilih){ ok = false; }
+  });
+  return ok;
+}
+
+// ═══════════════════════════════════════════════
+// HITUNG IKM
+// ═══════════════════════════════════════════════
+function hitungIKM(nilaiPerUnsur){
+  // Nilai rata-rata per unsur → NRR → IKM (×25)
+  const nrr = nilaiPerUnsur.reduce((s,n)=>s+n,0) / nilaiPerUnsur.length;
+  const ikm = (nrr / 4) * 100; // skala 100
+  let mutu, kinerja;
+  if(ikm >= 88.31)       { mutu='A'; kinerja='Sangat Baik'; }
+  else if(ikm >= 76.61)  { mutu='B'; kinerja='Baik'; }
+  else if(ikm >= 65.00)  { mutu='C'; kinerja='Kurang Baik'; }
+  else                   { mutu='D'; kinerja='Tidak Baik'; }
+  return { nrr: nrr.toFixed(3), ikm: ikm.toFixed(2), mutu, kinerja };
+}
+
+// ═══════════════════════════════════════════════
+// KIRIM SURVEI
+// ═══════════════════════════════════════════════
+async function kirimSurvei(e){
+  e.preventDefault();
+  if(!validasi()){
+    // Scroll ke pertanyaan pertama yang belum diisi
+    const firstError = document.querySelector('.pertanyaan.has-error');
+    if(firstError) firstError.scrollIntoView({behavior:'smooth', block:'center'});
+    return;
+  }
+
+  const btn = document.getElementById('btn-kirim');
+  btn.disabled = true;
+  btn.textContent = 'Mengirim…';
+
+  const nilaiPerUnsur = UNSUR.map(u => parseInt(document.querySelector(`input[name="${u.id}"]:checked`).value));
+  const { nrr, ikm, mutu, kinerja } = hitungIKM(nilaiPerUnsur);
+
+  const payload = {
+    timestamp:  new Date().toLocaleString('id-ID', {timeZone:'Asia/Makassar'}),
+    jk:         document.getElementById('f-jk').value || '-',
+    usia:       document.getElementById('f-usia').value || '-',
+    layanan:    document.getElementById('f-layanan').value,
+    saran:      document.getElementById('f-saran').value || '-',
+    nrr, ikm, mutu, kinerja,
+  };
+
+  // Nilai per unsur
+  UNSUR.forEach((u, i) => { payload[`u${i+1}_${u.label.replace(/\s/g,'_')}`] = nilaiPerUnsur[i]; });
+
+  try {
+    if(APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbxQ1RCSjZUR_q5tPLmXJHo7o2DOmayxfeAkos9v9x55OUNguQpApn5NWcDV18xkQZDv/exec'){
+      // Mode demo — simulasi berhasil
+      await new Promise(r => setTimeout(r, 800));
+    } else {
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    }
+    tampilSukses();
+  } catch(err) {
+    btn.disabled = false;
+    btn.textContent = 'Kirim Penilaian →';
+    alert('Gagal mengirim. Periksa koneksi internet Anda lalu coba lagi.');
+  }
+}
+
+function tampilSukses(){
+  document.getElementById('form-survei').style.display = 'none';
+  const sukses = document.getElementById('layar-sukses');
+  sukses.style.display = 'block';
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function ulangSurvei(){
+  document.getElementById('form-survei').reset();
+  document.getElementById('layar-sukses').style.display = 'none';
+  document.getElementById('form-survei').style.display = 'block';
+  document.getElementById('btn-kirim').disabled = false;
+  document.getElementById('btn-kirim').textContent = 'Kirim Penilaian →';
+  document.getElementById('progress-bar').style.width = '0%';
+  document.querySelectorAll('.pertanyaan').forEach(p => p.classList.remove('has-error'));
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+// Init
+renderPertanyaan();
+</script>
+</body>
+</html>
