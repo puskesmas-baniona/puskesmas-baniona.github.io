@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
-<head><!-- v20260726h_fix_kursor_cari_st -->
+<head><!-- v20260726k_final -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sistem Terpadu UPTD Puskesmas Baniona</title>
@@ -4174,15 +4174,24 @@ function getFilteredST(){
   // Buat index sekali di luar loop untuk performa
   const jadwalMap={}; (db.jadwal||[]).forEach(j=>jadwalMap[j.id]=j);
   const lokasiMap={}; (db.lokasi||[]).forEach(l=>lokasiMap[l.id]=l);
+  // Index jadwal berdasarkan tanggal|maksud|lokasiId untuk ST lama tanpa jadwalId
+  const jadwalKeyMap={};
+  (db.jadwal||[]).forEach(j=>{ const k=`${j.tanggal}|${j.maksud}|${j.lokasiId}`; if(!jadwalKeyMap[k]) jadwalKeyMap[k]=j; });
   const _q=searchST.toLowerCase();
   return db.suratTugas.filter(s=>{
     // Sembunyikan ST yatim (jadwalnya sudah dihapus)
-    const j=s.jadwalId?jadwalMap[s.jadwalId]:null;
+    let j=s.jadwalId?jadwalMap[s.jadwalId]:null;
     if(s.jadwalId&&!j) return false;
-    if(!s.jadwalId&&!(db.jadwal||[]).find(jj=>jj.tanggal===s.tanggal&&jj.maksud===s.maksud&&jj.lokasiId===s.lokasiId)) return false;
+    // ST lama tanpa jadwalId — cari jadwal via key index (lebih cepat)
+    if(!s.jadwalId){
+      j=jadwalKeyMap[`${s.tanggal}|${s.maksud}|${s.lokasiId}`]||null;
+      if(!j) return false;
+    }
+    // Ambil lokasiId: utamakan dari ST, fallback ke jadwal terkait
+    const _lokasiId=s.lokasiId||(j&&j.lokasiId)||null;
     if(_q){
       const _nCari=(s.nomorST||'')+' '+(j&&j.nomorSuratManual?j.nomorSuratManual:'')+(s.nomorSuratManual||'');
-      const _lokNama=(lokasiMap[s.lokasiId]||{nama:''}).nama;
+      const _lokNama=(lokasiMap[_lokasiId]||{nama:''}).nama;
       const _pegCari=(s.snapshotPegawai||[]).map(x=>x.nama).join(' ');
       const cocokCari=_nCari.toLowerCase().includes(_q)||_lokNama.toLowerCase().includes(_q)||(s.maksud||'').toLowerCase().includes(_q)||_pegCari.toLowerCase().includes(_q);
       if(!cocokCari) return false;
@@ -4230,7 +4239,9 @@ function renderSemuaST(){
 
   const baris=s=>{
     const peg=findPegForST(s,s.pegawaiIds[0]);
-    const lok=db.lokasi.find(l=>l.id===s.lokasiId);
+    const _jBaris=s.jadwalId?(db.jadwal||[]).find(x=>x.id===s.jadwalId):null;
+    const _lokasiIdBaris=s.lokasiId||(_jBaris&&_jBaris.lokasiId)||null;
+    const lok=db.lokasi.find(l=>l.id===_lokasiIdBaris);
     const pen=s.pengikutIds.map(id=>(findPegForST(s,id)||{nama:'-'}).nama).join(', ');
     const statusKirim=s.dikirimAt?`<span class="badge" style="background:#dcfce7;color:#16a34a">✓ Terkirim ${formatDate(s.dikirimAt.slice(0,10))}</span>`:`<span class="badge" style="background:#fef3c7;color:#92610a">Belum dikirim</span>`;
     // Jika ST ini bagian dari grup (tempat berangkat berbeda), tampilkan info terkait
@@ -9126,8 +9137,10 @@ function matrixRefresh(){
         if(!countedIds.has(j.id)){
           countedIds.add(j.id);
           // Baca biaya dari biayaPerTempat[tempatPegawai] jika sudah diinput di Biaya Dinas
+          // Prioritaskan snapshot jadwal (historis) agar perubahan tempat bulan ini tidak ubah bulan lalu
+          const _snapPeg=(j.snapshotPegawai||[]).find(x=>x.id===p.id);
           const _tmpPeg=db.pegawai.find(x=>x.id===p.id);
-          const _tmpKey=_tmpPeg?(_tmpPeg.tempatBerangkat||'UPTD Puskesmas Baniona'):'UPTD Puskesmas Baniona';
+          const _tmpKey=(_snapPeg&&_snapPeg.tempatBerangkat)||(_tmpPeg&&_tmpPeg.tempatBerangkat)||'UPTD Puskesmas Baniona';
           const _biayaPeg=(j.biayaPerTempat&&j.biayaPerTempat[_tmpKey]!==undefined)
             ?j.biayaPerTempat[_tmpKey]:(j.biayaTransport||0);
           rowTotal+=_biayaPeg;
@@ -9219,8 +9232,9 @@ function matrixRefresh(){
       const p=db.pegawai.find(pp=>pp.id===pid);
       const namaPeg=p?p.nama:'-';
       if(!pegawaiNominalMap[namaPeg]) pegawaiNominalMap[namaPeg]=new Set();
-      // Baca biaya sesuai tempat berangkat pegawai ini
-      const tmpKey=p?(p.tempatBerangkat||'UPTD Puskesmas Baniona'):'UPTD Puskesmas Baniona';
+      // Baca biaya sesuai tempat berangkat pegawai ini (dari snapshot historis, bukan data live)
+      const _snapP=(j.snapshotPegawai||[]).find(x=>x.id===pid);
+      const tmpKey=(_snapP&&_snapP.tempatBerangkat)||(p&&p.tempatBerangkat)||'UPTD Puskesmas Baniona';
       const biayaPeg=(j.biayaPerTempat&&j.biayaPerTempat[tmpKey]!==undefined)
         ?j.biayaPerTempat[tmpKey]:(j.biayaTransport||0);
       pegawaiNominalMap[namaPeg].add(biayaPeg);
@@ -9327,7 +9341,8 @@ function cetakLaporanMatrix(bulan,tahun){
   // Hitung biaya per pegawai dengan membaca biayaPerTempat jika sudah diinput
   function biayaPegawaiDiJadwal(j, pid){
     const p=db.pegawai.find(x=>x.id===pid);
-    const tmpKey=p?(p.tempatBerangkat||'UPTD Puskesmas Baniona'):'UPTD Puskesmas Baniona';
+    const _snap=(j.snapshotPegawai||[]).find(x=>x.id===pid);
+    const tmpKey=(_snap&&_snap.tempatBerangkat)||(p&&p.tempatBerangkat)||'UPTD Puskesmas Baniona';
     return (j.biayaPerTempat&&j.biayaPerTempat[tmpKey]!==undefined)
       ?j.biayaPerTempat[tmpKey]:(j.biayaTransport||0);
   }
