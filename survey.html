@@ -194,7 +194,7 @@
 // ═══════════════════════════════════════════════
 // KONFIGURASI — ganti URL ini setelah deploy Apps Script
 // ═══════════════════════════════════════════════
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxQ1RCSjZUR_q5tPLmXJHo7o2DOmayxfeAkos9v9x55OUNguQpApn5NWcDV18xkQZDv/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzsNh5ptlHf20gbzjNM43aCMKnM3YyUZkqe6JWlI9svZY03q4EYMnzlI9-15jTSRx8p/exec';
 
 // ═══════════════════════════════════════════════
 // 9 UNSUR IKM (Permenpan RB No. 14 Tahun 2017)
@@ -312,11 +312,12 @@ async function kirimSurvei(e){
   UNSUR.forEach((u, i) => { payload[`u${i+1}_${u.label.replace(/\s/g,'_')}`] = nilaiPerUnsur[i]; });
 
   try {
+    const formData = new FormData();
+    formData.append('data', JSON.stringify(payload));
     await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: formData,
     });
     tampilSukses();
   } catch(err) {
