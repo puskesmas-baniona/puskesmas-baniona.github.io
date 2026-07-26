@@ -8,6 +8,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
 :root {
   --teal:#1a7a1a; --teal-dk:#004d00; --teal-md:#2e9e2e; --teal-lt:#e8f5e8; --teal-xl:#f0faf0;
@@ -173,6 +176,8 @@ button{font-family:inherit;cursor:pointer}
   font-weight:600;border:none;border-radius:var(--r-xs)}
 .btn-export{padding:7px 16px;background:var(--gold-lt);color:var(--gold-dk);font-size:13px;
   font-weight:600;border:1.5px solid var(--gold);border-radius:var(--r-xs)}
+.btn-export-pdf{padding:7px 16px;background:#fef2f2;color:#b91c1c;font-size:13px;
+  font-weight:600;border:1.5px solid #f87171;border-radius:var(--r-xs);cursor:pointer;font-family:inherit}
 
 /* Table */
 .tbl-wrap{background:var(--white);border-radius:var(--r);box-shadow:var(--sh);overflow-x:auto;margin:14px 0}
@@ -390,7 +395,8 @@ button{font-family:inherit;cursor:pointer}
             <option>Pendaftaran / Loket</option><option>Lainnya</option>
           </select>
           <button class="btn-filter" onclick="renderDataTable()">Filter</button>
-          <button class="btn-export" onclick="exportCSV()">⬇ Export CSV</button>
+          <button class="btn-export" onclick="exportExcel()">⬇ Export Excel</button>
+          <button class="btn-export-pdf" onclick="exportPDF()">⬇ Export PDF</button>
         </div>
         <div class="tbl-wrap">
           <table class="data-table">
@@ -765,7 +771,7 @@ function renderDataTable(){
   }).join('');
 }
 
-function exportCSV(){
+function exportExcel(){
   if(!allData.length){alert('Tidak ada data untuk diekspor.');return;}
   const bulan=document.getElementById('filter-bulan').value;
   const layanan=document.getElementById('filter-layanan').value;
@@ -777,15 +783,316 @@ function exportCSV(){
     ...UNSUR.map(u=>u.label),'Saran'];
   const rows=filtered.map(d=>[
     d._ts?d._ts.toLocaleString('id-ID'):'-',
-    d.jk||'-',d.usia||'-',d.layanan||'-',d.ikm||'',d.nrr||'',d.mutu||'',d.kinerja||'',
-    ...UNSUR.map(u=>d[u.id]||''),
-    (d.saran||'').replace(/,/g,';')
+    d.jk||'-',d.usia||'-',d.layanan||'-',
+    d.ikm?parseFloat(d.ikm):'',
+    d.nrr?parseFloat(d.nrr):'',
+    d.mutu||'',d.kinerja||'',
+    ...UNSUR.map(u=>d[u.id]?parseInt(d[u.id]):''),
+    d.saran||''
   ]);
-  const csv=[headers,...rows].map(r=>r.join(',')).join('\n');
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download=`IKM_Baniona_${bulan||'semua'}.csv`;
-  a.click();
+
+  const wb=XLSX.utils.book_new();
+  const wsData=[headers,...rows];
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+
+  // Lebar kolom
+  const colWidths=[
+    {wch:22},{wch:14},{wch:14},{wch:22},
+    {wch:8},{wch:8},{wch:10},{wch:18},
+    ...UNSUR.map(()=>({wch:12})),
+    {wch:40}
+  ];
+  ws['!cols']=colWidths;
+
+  // Freeze baris pertama
+  ws['!freeze']={xSplit:0,ySplit:1,topLeftCell:'A2',activePane:'bottomLeft',state:'frozen'};
+
+  // Style header: background hijau tua, teks putih, bold, tengah
+  const headerStyle={
+    font:{bold:true,color:{rgb:'FFFFFF'},sz:11},
+    fill:{fgColor:{rgb:'1a7a1a'},patternType:'solid'},
+    alignment:{horizontal:'center',vertical:'center',wrapText:true},
+    border:{
+      top:{style:'thin',color:{rgb:'004d00'}},
+      bottom:{style:'thin',color:{rgb:'004d00'}},
+      left:{style:'thin',color:{rgb:'004d00'}},
+      right:{style:'thin',color:{rgb:'004d00'}}
+    }
+  };
+
+  // Style data: border tipis, alternating row
+  const dataStyleEven={
+    alignment:{vertical:'center'},
+    border:{
+      top:{style:'hair',color:{rgb:'cde0e0'}},
+      bottom:{style:'hair',color:{rgb:'cde0e0'}},
+      left:{style:'hair',color:{rgb:'cde0e0'}},
+      right:{style:'hair',color:{rgb:'cde0e0'}}
+    }
+  };
+  const dataStyleOdd={
+    fill:{fgColor:{rgb:'f0faf0'},patternType:'solid'},
+    alignment:{vertical:'center'},
+    border:{
+      top:{style:'hair',color:{rgb:'cde0e0'}},
+      bottom:{style:'hair',color:{rgb:'cde0e0'}},
+      left:{style:'hair',color:{rgb:'cde0e0'}},
+      right:{style:'hair',color:{rgb:'cde0e0'}}
+    }
+  };
+
+  // Style kolom Mutu berdasarkan nilai
+  const mutuColor={
+    'A (Sangat Baik)':{rgb:'c6efce'},
+    'B (Baik)':{rgb:'e2efda'},
+    'C (Kurang Baik)':{rgb:'ffeb9c'},
+    'D (Tidak Baik)':{rgb:'ffc7ce'}
+  };
+
+  const nCols=headers.length;
+  const nRows=rows.length;
+  const ref=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:nRows,c:nCols-1}});
+  ws['!ref']=ref;
+
+  // Terapkan style header
+  for(let c=0;c<nCols;c++){
+    const addr=XLSX.utils.encode_cell({r:0,c});
+    if(ws[addr]) ws[addr].s=headerStyle;
+  }
+
+  // Terapkan style data rows
+  const mutuColIdx=headers.indexOf('Mutu');
+  for(let r=1;r<=nRows;r++){
+    const isOdd=r%2===1;
+    for(let c=0;c<nCols;c++){
+      const addr=XLSX.utils.encode_cell({r,c});
+      if(!ws[addr]) ws[addr]={t:'z'};
+      let st=isOdd?{...dataStyleOdd}:{...dataStyleEven};
+      // Warna khusus kolom Mutu
+      if(c===mutuColIdx && ws[addr].v){
+        const mc=mutuColor[ws[addr].v];
+        if(mc) st={...st,fill:{fgColor:mc,patternType:'solid'}};
+      }
+      ws[addr].s=st;
+    }
+  }
+
+  // Tinggi baris header
+  ws['!rows']=[{hpt:32},...Array(nRows).fill({hpt:18})];
+
+  XLSX.utils.book_append_sheet(wb,ws,'Data IKM');
+
+  // Sheet ringkasan
+  const totalResp=filtered.length;
+  const avgIKM=totalResp?
+    (filtered.reduce((s,d)=>s+(parseFloat(d.ikm)||0),0)/totalResp).toFixed(2):'0';
+  const mutuCount={};
+  filtered.forEach(d=>{if(d.mutu)mutuCount[d.mutu]=(mutuCount[d.mutu]||0)+1;});
+
+  const summaryData=[
+    ['REKAPITULASI IKM — UPTD PUSKESMAS BANIONA'],
+    [],
+    ['Periode',bulan||'Semua Bulan'],
+    ['Layanan',layanan||'Semua Layanan'],
+    ['Tanggal Export',new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'})],
+    [],
+    ['Total Responden',totalResp],
+    ['Nilai IKM Rata-rata',parseFloat(avgIKM)],
+    [],
+    ['DISTRIBUSI MUTU','Jumlah','Persentase'],
+    ...Object.entries(mutuCount).map(([k,v])=>[k,v,((v/totalResp)*100).toFixed(1)+'%']),
+    [],
+    ['RERATA PER UNSUR PELAYANAN','NRR'],
+    ...UNSUR.map(u=>{
+      const vals=filtered.map(d=>parseInt(d[u.id])||0).filter(v=>v>0);
+      const avg=vals.length?(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2):'0';
+      return[u.label,parseFloat(avg)];
+    })
+  ];
+
+  const ws2=XLSX.utils.aoa_to_sheet(summaryData);
+  ws2['!cols']=[{wch:40},{wch:16},{wch:14}];
+
+  // Style judul ringkasan
+  if(ws2['A1']){
+    ws2['A1'].s={
+      font:{bold:true,sz:14,color:{rgb:'004d00'}},
+      alignment:{horizontal:'left'}
+    };
+  }
+  // Style sub-header tabel
+  ['A10','B10','C10','A16','B16'].forEach(addr=>{
+    if(ws2[addr]) ws2[addr].s={
+      font:{bold:true,color:{rgb:'FFFFFF'}},
+      fill:{fgColor:{rgb:'1a7a1a'},patternType:'solid'},
+      alignment:{horizontal:'center'}
+    };
+  });
+
+  XLSX.utils.book_append_sheet(wb,ws2,'Ringkasan');
+
+  const filename=`IKM_Baniona_${bulan||'semua'}_${new Date().toISOString().slice(0,10)}.xlsx`;
+  XLSX.writeFile(wb,filename);
+}
+
+function exportPDF(){
+  if(!allData.length){alert('Tidak ada data untuk diekspor.');return;}
+  const bulan=document.getElementById('filter-bulan').value;
+  const layanan=document.getElementById('filter-layanan').value;
+  let filtered=allData;
+  if(bulan) filtered=filtered.filter(d=>d.bulanKey===bulan);
+  if(layanan) filtered=filtered.filter(d=>d.layanan===layanan);
+
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+  const W=doc.internal.pageSize.getWidth();
+  const tgl=new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+  const periodeLabel=(bulan||'Semua Bulan')+' · '+(layanan||'Semua Layanan');
+
+  // ── Fungsi header per halaman ──
+  function drawHeader(data){
+    doc.setFillColor(26,122,26);
+    doc.rect(0,0,W,16,'F');
+    doc.setTextColor(255,255,255);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(11);
+    doc.text('LAPORAN IKM — UPTD PUSKESMAS BANIONA',14,10);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8);
+    doc.text('Dicetak: '+tgl,W-14,10,{align:'right'});
+    doc.setTextColor(40,40,40);
+  }
+
+  // ── Ringkasan di halaman pertama ──
+  drawHeader();
+  const totalResp=filtered.length;
+  const avgIKM=totalResp?(filtered.reduce((s,d)=>s+(parseFloat(d.ikm)||0),0)/totalResp).toFixed(2):'0';
+  const mutuCount={};
+  filtered.forEach(d=>{if(d.mutu)mutuCount[d.mutu]=(mutuCount[d.mutu]||0)+1;});
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9);
+  doc.setTextColor(0,77,0);
+  doc.text('REKAPITULASI INDEKS KEPUASAN MASYARAKAT',14,24);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8);
+  doc.setTextColor(80,80,80);
+  doc.text('Periode: '+periodeLabel,14,29);
+
+  // Kotak statistik
+  const stats=[
+    {label:'Total Responden',val:totalResp},
+    {label:'Nilai IKM Rata-rata',val:avgIKM},
+    {label:'Mutu Terbanyak',val:Object.entries(mutuCount).sort((a,b)=>b[1]-a[1])[0]?.[0]?.split(' ')[0]||'-'},
+  ];
+  stats.forEach((s,i)=>{
+    const x=14+i*65;
+    doc.setFillColor(240,250,240);
+    doc.roundedRect(x,33,60,16,2,2,'F');
+    doc.setDrawColor(26,122,26);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(x,33,60,16,2,2,'S');
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(7);
+    doc.setTextColor(90,112,112);
+    doc.text(s.label,x+4,39);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(13);
+    doc.setTextColor(26,122,26);
+    doc.text(String(s.val),x+4,47);
+  });
+
+  // Distribusi mutu
+  const mutuColors={
+    'A (Sangat Baik)':[198,239,206],
+    'B (Baik)':[226,239,218],
+    'C (Kurang Baik)':[255,235,156],
+    'D (Tidak Baik)':[255,199,206]
+  };
+  const mutuTextColors={
+    'A (Sangat Baik)':[39,98,33],
+    'B (Baik)':[53,100,33],
+    'C (Kurang Baik)':[125,89,0],
+    'D (Tidak Baik)':[156,0,6]
+  };
+  let mx=14;
+  Object.entries(mutuCount).forEach(([k,v])=>{
+    const pct=((v/totalResp)*100).toFixed(0)+'%';
+    const fc=mutuColors[k]||[220,220,220];
+    const tc=mutuTextColors[k]||[40,40,40];
+    doc.setFillColor(...fc);
+    doc.roundedRect(mx,53,46,13,2,2,'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(7);
+    doc.setTextColor(...tc);
+    doc.text(k,mx+3,59);
+    doc.setFontSize(10);
+    doc.text(v+' ('+pct+')',mx+3,65);
+    mx+=50;
+  });
+
+  // ── Tabel data ──
+  const headers=['#','Waktu','JK','Usia','Layanan','IKM','Mutu','Saran'];
+  const tableRows=filtered.map((d,i)=>[
+    i+1,
+    d._ts?d._ts.toLocaleString('id-ID'):'-',
+    d.jk||'-',
+    d.usia||'-',
+    d.layanan||'-',
+    d.ikm||'-',
+    d.mutu||'-',
+    (d.saran||'-').slice(0,60)+(d.saran&&d.saran.length>60?'…':'')
+  ]);
+
+  doc.autoTable({
+    startY:70,
+    head:[headers],
+    body:tableRows,
+    theme:'grid',
+    styles:{fontSize:7,cellPadding:2,valign:'middle',textColor:[30,30,30]},
+    headStyles:{
+      fillColor:[26,122,26],
+      textColor:[255,255,255],
+      fontStyle:'bold',
+      halign:'center',
+      fontSize:7.5
+    },
+    columnStyles:{
+      0:{halign:'center',cellWidth:8},
+      1:{cellWidth:30},
+      2:{halign:'center',cellWidth:18},
+      3:{halign:'center',cellWidth:22},
+      4:{cellWidth:32},
+      5:{halign:'center',cellWidth:14},
+      6:{cellWidth:28},
+      7:{cellWidth:'auto'}
+    },
+    alternateRowStyles:{fillColor:[240,250,240]},
+    didParseCell(data){
+      if(data.column.index===6 && data.section==='body'){
+        const v=data.cell.raw;
+        const c=mutuColors[v]||null;
+        const tc=mutuTextColors[v]||null;
+        if(c){data.cell.styles.fillColor=c;data.cell.styles.textColor=tc;}
+        data.cell.styles.halign='center';
+      }
+    },
+    didDrawPage(data){
+      drawHeader(data);
+      // Footer
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(7);
+      doc.setTextColor(140,140,140);
+      const pg=doc.internal.getCurrentPageInfo().pageNumber;
+      const total=doc.internal.getNumberOfPages();
+      doc.text('Hal '+pg+' / '+total,W-14,doc.internal.pageSize.getHeight()-5,{align:'right'});
+      doc.text('UPTD Puskesmas Baniona — Flores Timur, NTT',14,doc.internal.pageSize.getHeight()-5);
+    },
+    margin:{top:20,left:14,right:14}
+  });
+
+  const filename=`IKM_Baniona_${bulan||'semua'}_${new Date().toISOString().slice(0,10)}.pdf`;
+  doc.save(filename);
 }
 
 // ═══════════════════════════════════════════════════════
