@@ -178,6 +178,9 @@ button{font-family:inherit;cursor:pointer}
   font-weight:600;border:1.5px solid var(--gold);border-radius:var(--r-xs)}
 .btn-export-pdf{padding:7px 16px;background:#fef2f2;color:#b91c1c;font-size:13px;
   font-weight:600;border:1.5px solid #f87171;border-radius:var(--r-xs);cursor:pointer;font-family:inherit}
+.btn-hapus{background:none;border:none;cursor:pointer;font-size:15px;padding:2px 6px;
+  border-radius:var(--r-xs);opacity:.5;transition:opacity .15s}
+.btn-hapus:hover{opacity:1;background:#fef2f2}
 
 /* Table */
 .tbl-wrap{background:var(--white);border-radius:var(--r);box-shadow:var(--sh);overflow-x:auto;margin:14px 0}
@@ -403,7 +406,7 @@ button{font-family:inherit;cursor:pointer}
             <thead>
               <tr>
                 <th>#</th><th>Waktu</th><th>JK</th><th>Usia</th><th>Layanan</th>
-                <th>IKM</th><th>Mutu</th><th>Saran</th>
+                <th>IKM</th><th>Mutu</th><th>Saran</th><th></th>
               </tr>
             </thead>
             <tbody id="data-tbody"></tbody>
@@ -767,8 +770,25 @@ function renderDataTable(){
       <td><b>${d.ikm||'-'}</b></td>
       <td><span class="badge-mutu mutu-${d.mutu}">${d.mutu||'-'}</span></td>
       <td>${saran}</td>
+      <td><button class="btn-hapus" onclick="hapusSurvei('${d.id}',this)" title="Hapus">🗑</button></td>
     </tr>`;
   }).join('');
+}
+
+async function hapusSurvei(id, btn){
+  if(!confirm('Hapus data survei ini?')) return;
+  btn.disabled=true;
+  btn.textContent='⏳';
+  try{
+    await db.collection(COL).doc(id).delete();
+    allData=allData.filter(d=>d.id!==id);
+    btn.closest('tr').remove();
+    renderDashboard();
+  }catch(e){
+    alert('Gagal menghapus: '+e.message);
+    btn.disabled=false;
+    btn.textContent='🗑';
+  }
 }
 
 function exportExcel(){
