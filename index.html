@@ -960,12 +960,12 @@ const _LOGO_DINKES = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAk
 
 let db = {
   pegawai: [
-    {id:1,nip:'19810125 200604 1 012',nama:'Paskalis Kopong Mamu',namaPanggilan:'Paskalis',pangkat:'Penata Muda Tk.I/III-b',jabatan:'Staf Puskesmas',username:'19810125200604',password:'19810125200604'},
-    {id:2,nip:'19860515 201001 2 054',nama:'Aloysia Yohana Wele Hurint',namaPanggilan:'Aloysia',pangkat:'Penata Muda Tk.I/III-b',jabatan:'Staf Puskesmas',username:'19860515201001',password:'19860515201001'},
-    {id:3,nip:'19891127 202421 2 001',nama:'Lusia Wahyu Beribe',namaPanggilan:'Lusia',pangkat:'Gol. VII',jabatan:'Staf Puskesmas',username:'19891127202421',password:'19891127202421'},
-    {id:4,nip:'19880101 202203 2 009',nama:'Maria Natalia Muda',namaPanggilan:'Maria',pangkat:'Penata Muda Tk.I/IIIb',jabatan:'Staf Puskesmas',username:'19880101202203',password:'19880101202203'},
-    {id:5,nip:'19870331 202521 1 029',nama:'Innayatullah Boro Bebe',namaPanggilan:'Inna',pangkat:'Gol. IX',jabatan:'Staf Puskesmas',username:'19870331202521',password:'19870331202521'},
-    {id:6,nip:'19920112 202521 2 021',nama:'Siti Hapsah Bethan',namaPanggilan:'Siti',pangkat:'Gol. VII',jabatan:'Staf Puskesmas',username:'19920112202521',password:'19920112202521'},
+    {id:1,nip:'198101252006041012',nama:'Paskalis Kopong Mamu',namaPanggilan:'Paskalis',pangkat:'Penata Muda Tk.I/III-b',jabatan:'Staf Puskesmas',username:'19810125200604',password:'19810125200604'},
+    {id:2,nip:'198605152010012054',nama:'Aloysia Yohana Wele Hurint',namaPanggilan:'Aloysia',pangkat:'Penata Muda Tk.I/III-b',jabatan:'Staf Puskesmas',username:'19860515201001',password:'19860515201001'},
+    {id:3,nip:'198911272024212001',nama:'Lusia Wahyu Beribe',namaPanggilan:'Lusia',pangkat:'Gol. VII',jabatan:'Staf Puskesmas',username:'19891127202421',password:'19891127202421'},
+    {id:4,nip:'198801012022032009',nama:'Maria Natalia Muda',namaPanggilan:'Maria',pangkat:'Penata Muda Tk.I/IIIb',jabatan:'Staf Puskesmas',username:'19880101202203',password:'19880101202203'},
+    {id:5,nip:'198703312025211029',nama:'Innayatullah Boro Bebe',namaPanggilan:'Inna',pangkat:'Gol. IX',jabatan:'Staf Puskesmas',username:'19870331202521',password:'19870331202521'},
+    {id:6,nip:'199201122025212021',nama:'Siti Hapsah Bethan',namaPanggilan:'Siti',pangkat:'Gol. VII',jabatan:'Staf Puskesmas',username:'19920112202521',password:'19920112202521'},
   ],
   lokasi: [
     {id:1,nama:'Posyandu Barang Gere 2, Oyangbarang',desa:'Oyangbarang',kecamatan:'Ile Bura',pimpinan:'Laurensius Lega Ama, S.H',jabPimpinan:'Kepala Desa Oyangbarang',nipPimpinan:'-',jenis:'Posyandu'},
@@ -4524,7 +4524,7 @@ function doCetakSemuaType(type){
   if(!win){showToast('Pop-up diblokir browser. Izinkan pop-up untuk mencetak.','error');return;}
   win.document.write(`<!DOCTYPE html><html><head><title>Cetak ${typeLabel[type]||''} – UPTD Puskesmas Baniona</title>
   <style>
-    @page{size:215mm 330mm;margin:10mm 15mm 10mm 20mm}
+    @page{size:215mm 330mm;margin:10mm 15mm 20mm 20mm}
     *{box-sizing:border-box}
     body{font-family:'Times New Roman',Times,serif;font-size:11pt;color:#000;background:white}
     .no-print{display:none!important}
@@ -5171,7 +5171,7 @@ function doPrint(filterType){
   if(!win){showToast('Pop-up diblokir browser. Izinkan pop-up untuk mencetak.','error');return;}
   win.document.write(`<!DOCTYPE html><html><head><title>Surat Tugas – UPTD Puskesmas Baniona</title>
   <style>
-    @page { size: 215mm 330mm; margin: 10mm 15mm 10mm 20mm; }
+    @page { size: 215mm 330mm; margin: 10mm 15mm 20mm 20mm; }
     * { box-sizing: border-box; }
     body { font-family: 'Times New Roman', Times, serif; font-size: 11pt; color: #000; background: white; }
     .no-print { display: none !important; }
@@ -7057,7 +7057,7 @@ function cetakJadwalSemua(){
       *{box-sizing:border-box;margin:0;padding:0}
       html{width:100%}
       body{font-family:'Roboto',Arial,'Helvetica Neue',sans-serif;font-size:10.5pt;color:#1c2127;background:#fff;padding:12mm;min-width:190mm;width:190mm;margin:0 auto;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
-      @page{size:215mm 330mm portrait;margin:10mm}
+      @page{size:215mm 330mm portrait;margin:10mm 10mm 20mm 10mm}
       @media print{body{padding:0;min-width:0;width:auto}}
       @media screen{html{overflow-x:auto}}
       img{display:inline-block;max-width:100%}
@@ -8859,7 +8859,7 @@ function previewRPK(){
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
     <title>RPK ${NAMA_BULAN_ID[bulan-1]} ${tahun} – UPTD Puskesmas Baniona</title>
     <style>
-      @page { size: 215mm 330mm; margin: 10mm 15mm 10mm 20mm; }
+      @page { size: 215mm 330mm; margin: 10mm 15mm 20mm 20mm; }
       *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
       body{font-family:'Inter',Arial,sans-serif;color:#000;background:#fff}
       table{width:100%;border-collapse:collapse}
@@ -12786,7 +12786,7 @@ function spCetakSatu(suratId){
       <style>
         *{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
         html,body{width:100%;overflow-x:hidden;margin:0;padding:0}
-        @page{size:215mm 330mm portrait;margin:15mm 15mm 15mm 25mm}
+        @page{size:215mm 330mm portrait;margin:15mm 15mm 20mm 25mm}
         @page :first{size:215mm 330mm portrait;margin:0}
         @media screen{html{overflow-x:auto}}
         img{display:inline-block;max-width:100%;height:auto}
