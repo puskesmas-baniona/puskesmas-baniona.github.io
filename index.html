@@ -1108,12 +1108,23 @@ function loadDB(){
         }catch(e){ console.error('[Firebase] Gagal parse data Firestore:', e); }
       } else {
         console.log('[Firebase] Dokumen belum ada di Firestore, pakai localStorage');
-        // Jika ada data lokal, upload ke Firestore sekarang
+        // Jika ada data lokal yang tidak kosong, upload ke Firestore sekarang
         const raw=localStorage.getItem(DB_KEY);
         if(raw && window._FB_DOC){
-          window._FB_DOC.set({ data: raw, updatedAt: new Date().toISOString() })
-            .then(()=>console.log('[Firebase] Data lokal diupload ke Firestore ✅'))
-            .catch(e=>console.error('[Firebase] Gagal upload:', e));
+          try{
+            const localParsed=JSON.parse(raw);
+            // Hanya upload jika data lokal punya konten bermakna (bukan hanya pegawai default)
+            const punya=(localParsed.jadwal&&localParsed.jadwal.length>0)||
+                         (localParsed.suratTugas&&localParsed.suratTugas.length>0)||
+                         (localParsed.jenisKegiatan&&localParsed.jenisKegiatan.length>0);
+            if(punya){
+              window._FB_DOC.set({ data: raw, updatedAt: new Date().toISOString() })
+                .then(()=>console.log('[Firebase] Data lokal diupload ke Firestore ✅'))
+                .catch(e=>console.error('[Firebase] Gagal upload:', e));
+            } else {
+              console.log('[Firebase] Data lokal kosong — tidak diupload ke Firestore');
+            }
+          }catch(e){ console.error('[Firebase] Gagal parse data lokal saat upload:', e); }
         }
       }
     }).catch(err=>{
@@ -1128,42 +1139,38 @@ function loadDB(){
       const parsed=JSON.parse(raw);
       if(parsed && Array.isArray(parsed.pegawai) && Array.isArray(parsed.lokasi)){
         db=_applyMigrasi(parsed);
-        // ── Migrasi: tambahkan jadwal contoh jika masih kosong ──
-        if(!localStorage.getItem('_restoring_backup') && (!db.jadwal || !db.jadwal.length)){
-          db.jadwal=[
-            {id:1,tanggal:'2026-07-03',lokasiId:1,maksud:'Pemantauan dan tindak lanjut PTM',lama:'1 (satu) hari',transport:'Kendaraan Pribadi',biayaTransport:150000,pegawaiUtamaId:1,pengikutIds:[2]},
-            {id:2,tanggal:'2026-07-07',lokasiId:2,maksud:'Deteksi dini dan CKG di Masyarakat',lama:'1 (satu) hari',transport:'Kendaraan Pribadi',biayaTransport:150000,pegawaiUtamaId:3,pengikutIds:[4]},
-            {id:3,tanggal:'2026-07-10',lokasiId:3,maksud:'Pelayanan Imunisasi Posyandu',lama:'1 (satu) hari',transport:'Kendaraan Pribadi',biayaTransport:150000,pegawaiUtamaId:2,pengikutIds:[]},
-            {id:4,tanggal:'2026-07-14',lokasiId:1,maksud:'Pemantauan Gizi Balita',lama:'1 (satu) hari',transport:'Kendaraan Pribadi',biayaTransport:150000,pegawaiUtamaId:5,pengikutIds:[6]},
-            {id:5,tanggal:'2026-07-08',lokasiId:5,maksud:'Penyuluhan Kesehatan di Sekolah',lama:'1 (satu) hari',transport:'Kendaraan Pribadi',biayaTransport:100000,pegawaiUtamaId:1,pengikutIds:[3]},
-            {id:6,tanggal:'2026-07-15',lokasiId:6,maksud:'Pemeriksaan Kesehatan Anak Sekolah',lama:'1 (satu) hari',transport:'Kendaraan Pribadi',biayaTransport:100000,pegawaiUtamaId:2,pengikutIds:[4]},
-            {id:7,tanggal:'2026-07-22',lokasiId:7,maksud:'Imunisasi BIAS Anak Sekolah',lama:'1 (satu) hari',transport:'Kendaraan Pribadi',biayaTransport:100000,pegawaiUtamaId:5,pengikutIds:[1,3]},
-          ];
-          db.nextJadwal=8;
-        }
+        // ── CATATAN: injeksi jadwal contoh dihapus untuk mencegah overwrite data asli ──
+        // Jangan pernah inject data default jika localStorage kosong —
+        // biarkan Firestore yang jadi sumber kebenaran.
       }
     }
   }catch(e){ console.error('Gagal memuat data tersimpan:', e); }
 
   // ── Bersihkan ST yatim: ST yang jadwalId-nya merujuk ke jadwal yang sudah dihapus ──
+  // PROTEKSI: jangan hapus ST jika jadwal kosong — bisa jadi data belum dimuat dari Firestore
   try{
     if(!localStorage.getItem('_restoring_backup') && db.suratTugas && db.jadwal){
-      const _jIds=new Set((db.jadwal||[]).map(j=>j.id));
-      // Kumpulkan semua kombinasi tanggal+maksud+lokasiId dari jadwal yang masih ada
-      const _jKeys=new Set((db.jadwal||[]).map(j=>`${j.tanggal}|${j.maksud}|${j.lokasiId}`));
-      const sebelum=db.suratTugas.length;
-      db.suratTugas=db.suratTugas.filter(s=>{
-        if(s.jadwalId){
-          return _jIds.has(s.jadwalId); // hapus jika jadwalId tidak ada di jadwal
-        } else {
-          // ST tanpa jadwalId: pertahankan hanya jika ada jadwal dengan tanggal+maksud+lokasi sama
-          const key=`${s.tanggal}|${s.maksud}|${s.lokasiId}`;
-          return _jKeys.has(key);
+      // PENTING: lewati pembersihan jika jadwal kosong untuk mencegah ST terhapus saat data belum siap
+      if(db.jadwal.length === 0){
+        console.log('[loadDB] Jadwal kosong — pembersihan ST yatim dilewati untuk keamanan data');
+      } else {
+        const _jIds=new Set((db.jadwal||[]).map(j=>j.id));
+        // Kumpulkan semua kombinasi tanggal+maksud+lokasiId dari jadwal yang masih ada
+        const _jKeys=new Set((db.jadwal||[]).map(j=>`${j.tanggal}|${j.maksud}|${j.lokasiId}`));
+        const sebelum=db.suratTugas.length;
+        db.suratTugas=db.suratTugas.filter(s=>{
+          if(s.jadwalId){
+            return _jIds.has(s.jadwalId); // hapus jika jadwalId tidak ada di jadwal
+          } else {
+            // ST tanpa jadwalId: pertahankan hanya jika ada jadwal dengan tanggal+maksud+lokasi sama
+            const key=`${s.tanggal}|${s.maksud}|${s.lokasiId}`;
+            return _jKeys.has(key);
+          }
+        });
+        if(db.suratTugas.length < sebelum){
+          localStorage.setItem(DB_KEY, JSON.stringify(db));
+          console.log('[loadDB] ST yatim dibersihkan:', sebelum - db.suratTugas.length);
         }
-      });
-      if(db.suratTugas.length < sebelum){
-        localStorage.setItem(DB_KEY, JSON.stringify(db));
-        console.log('[loadDB] ST yatim dibersihkan:', sebelum - db.suratTugas.length);
       }
     }
   }catch(e){ console.error('Gagal bersihkan ST yatim:', e); }
@@ -1300,6 +1307,54 @@ loadDB();
   });
   window.addEventListener('beforeunload', flushSave);
   window.addEventListener('pagehide', flushSave);
+})();
+
+// ═══════════════════════════════════════════════
+// AUTO-BACKUP HARIAN — simpan file JSON backup otomatis
+// Mencegah kehilangan data seperti yang pernah terjadi
+// ═══════════════════════════════════════════════
+function downloadBackupJSON(){
+  try{
+    const snapshot=JSON.stringify(db, null, 2);
+    const tgl=new Date().toISOString().slice(0,10);
+    const blob=new Blob([snapshot],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=`backup-baniona-${tgl}.json`; a.click();
+    URL.revokeObjectURL(url);
+    console.log('[Backup] File backup didownload ✅');
+  }catch(e){ console.error('[Backup] Gagal download backup:', e); }
+}
+window.downloadBackupJSON=downloadBackupJSON;
+
+// Cek apakah backup harian sudah pernah dilakukan hari ini
+(function checkAutoBackup(){
+  try{
+    const today=new Date().toISOString().slice(0,10);
+    const lastBackup=localStorage.getItem('_last_auto_backup');
+    if(lastBackup!==today){
+      // Tunda 10 detik agar data sempat dimuat dari Firestore dulu
+      setTimeout(function(){
+        try{
+          const punya=(db.jadwal&&db.jadwal.length>0)||
+                       (db.suratTugas&&db.suratTugas.length>0)||
+                       (db.jenisKegiatan&&db.jenisKegiatan.length>0);
+          if(punya){
+            localStorage.setItem('_last_auto_backup', today);
+            // Tampilkan notifikasi ke user (tidak otomatis download agar tidak mengganggu)
+            setTimeout(function(){
+              const ind=document.getElementById('save-indicator');
+              if(ind){
+                ind.className='saved';
+                ind.innerHTML='💾 <a href="#" onclick="downloadBackupJSON();return false;" style="color:inherit;text-decoration:underline;">Backup tersedia — klik untuk simpan</a>';
+                setTimeout(()=>{ ind.className=''; ind.innerHTML=''; },10000);
+              }
+            }, 2000);
+          }
+        }catch(e){}
+      }, 10000);
+    }
+  }catch(e){}
 })();
 
 let currentUser=null, currentTab='admin', searchPeg='', searchST='', searchLok='';
@@ -4771,9 +4826,14 @@ function genST(d) {
   const _nomorManualST = (_jadwalST&&_jadwalST.nomorSuratManual) || d.nomorSuratManual || '';
   const nomor    = d.nomor || d.nomorST || _nomorManualST;
   const suffix   = nomor ? nomor.replace(/^[^/]*/,'') : '';
+  // Hitung suffix fallback dari tanggal kegiatan jika nomor belum ada
+  const _tglST   = new Date(d.tanggal + 'T00:00:00');
+  const _blnST   = (typeof ROMAWI_BULAN!=='undefined'?ROMAWI_BULAN:['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'])[_tglST.getMonth()];
+  const _thnST   = _tglST.getFullYear();
+  const _suffixFallbackST = `/ST/BOK/PKM.BO/${_blnST}/${_thnST}`;
   const nomorDisplay = (d.nomorUrut || _nomorManualST)
     ? (nomor || _nomorManualST)
-    : `<span style="display:inline-block;min-width:30px">&nbsp;</span>${suffix}`;
+    : `<span style="display:inline-block;min-width:30px">&nbsp;</span>${suffix || _suffixFallbackST}`;
 
   let isiPegawai = '';
   if (isGroup) {
@@ -4846,9 +4906,14 @@ function genSPPD(d) {
     .replace('/ST/BOK/', '/SPPD/')
     .replace('/ST/', '/SPPD/');
   const nomSPPDSuffix = nomSPPD.replace(/^[^/]*/, '');
+  // Hitung suffix fallback SPPD dari tanggal kegiatan jika nomor belum ada
+  const _tglSPPD  = new Date(d.tanggal + 'T00:00:00');
+  const _blnSPPD  = (typeof ROMAWI_BULAN!=='undefined'?ROMAWI_BULAN:['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'])[_tglSPPD.getMonth()];
+  const _thnSPPD  = _tglSPPD.getFullYear();
+  const _suffixFallbackSPPD = `/SPPD/PKM.BO/${_blnSPPD}/${_thnSPPD}`;
   const nomSPPDDisplay = (d.nomorUrut || _nomorManualSPPD)
     ? (nomSPPD || _nomorManualSPPD)
-    : `<span style="display:inline-block;min-width:30px">&nbsp;</span>${nomSPPDSuffix}`;
+    : `<span style="display:inline-block;min-width:30px">&nbsp;</span>${nomSPPDSuffix || _suffixFallbackSPPD}`;
   const tahun    = new Date(d.tanggal + 'T00:00:00').getFullYear();
   const tmpBerangkat = peg.tempatBerangkat || 'UPTD Puskesmas Baniona';
   // Tempat kedudukan: cari desa dari db.lokasi berdasarkan nama lokasi yang cocok dengan tempatBerangkat.
