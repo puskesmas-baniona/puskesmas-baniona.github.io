@@ -1032,12 +1032,18 @@ function saveDB(){
       localStorage.setItem(DB_KEY, snapshot);
       _lastSavedSnapshot=snapshot;
       // Simpan ke Firestore (realtime sync antar perangkat)
-      if(window._FB_DOC){
+      // Guard: jangan push ke Firestore kalau data tidak punya konten bermakna
+      const _dbObj=JSON.parse(snapshot);
+      const _adaKonten=(_dbObj.jadwal&&_dbObj.jadwal.length>0)||
+                       (_dbObj.suratTugas&&_dbObj.suratTugas.length>0)||
+                       (_dbObj.jenisKegiatan&&_dbObj.jenisKegiatan.length>0)||
+                       (_dbObj.pegawai&&_dbObj.pegawai.length>2);
+      if(window._FB_DOC && _adaKonten){
         window._FB_DOC.set({ data: snapshot, updatedAt: new Date().toISOString() })
           .then(()=>{
             console.log('[Firebase] Data tersimpan ke Firestore ✅');
             if(ind){
-              ind.className='saved'; ind.innerHTML='✅ Tersimpan';
+              ind.className='saved'; ind.innerHTML='☁️ Tersimpan di Cloud';
               setTimeout(()=>{ ind.className=''; ind.innerHTML=''; },2500);
             }
           })
@@ -1045,13 +1051,13 @@ function saveDB(){
             console.error('[Firebase] Gagal simpan ke Firestore:', err);
             // Tetap anggap tersimpan karena sudah ada di localStorage
             if(ind){
-              ind.className='saved'; ind.innerHTML='✅ Tersimpan (lokal)';
+              ind.className='saved'; ind.innerHTML='💾 Tersimpan Lokal';
               setTimeout(()=>{ ind.className=''; ind.innerHTML=''; },2500);
             }
           });
       } else {
         if(ind){
-          ind.className='saved'; ind.innerHTML='✅ Tersimpan';
+          ind.className='saved'; ind.innerHTML='💾 Tersimpan Lokal';
           setTimeout(()=>{ ind.className=''; ind.innerHTML=''; },2500);
         }
       }
@@ -1107,25 +1113,10 @@ function loadDB(){
           }
         }catch(e){ console.error('[Firebase] Gagal parse data Firestore:', e); }
       } else {
-        console.log('[Firebase] Dokumen belum ada di Firestore, pakai localStorage');
-        // Jika ada data lokal yang tidak kosong, upload ke Firestore sekarang
-        const raw=localStorage.getItem(DB_KEY);
-        if(raw && window._FB_DOC){
-          try{
-            const localParsed=JSON.parse(raw);
-            // Hanya upload jika data lokal punya konten bermakna (bukan hanya pegawai default)
-            const punya=(localParsed.jadwal&&localParsed.jadwal.length>0)||
-                         (localParsed.suratTugas&&localParsed.suratTugas.length>0)||
-                         (localParsed.jenisKegiatan&&localParsed.jenisKegiatan.length>0);
-            if(punya){
-              window._FB_DOC.set({ data: raw, updatedAt: new Date().toISOString() })
-                .then(()=>console.log('[Firebase] Data lokal diupload ke Firestore ✅'))
-                .catch(e=>console.error('[Firebase] Gagal upload:', e));
-            } else {
-              console.log('[Firebase] Data lokal kosong — tidak diupload ke Firestore');
-            }
-          }catch(e){ console.error('[Firebase] Gagal parse data lokal saat upload:', e); }
-        }
+        // Firestore kosong — JANGAN upload apapun ke Firestore dari perangkat ini.
+        // Biarkan Firestore tetap kosong. Data akan diisi saat admin melakukan
+        // operasi nyata (tambah pegawai, jadwal, dll) dari perangkat yang berwenang.
+        console.log('[Firebase] Dokumen belum ada di Firestore — pakai localStorage saja, tidak upload otomatis.');
       }
     }).catch(err=>{
       console.warn('[Firebase] Gagal ambil dari Firestore, pakai localStorage:', err);
@@ -1241,6 +1232,19 @@ loadDB();
       const incomingSnap=JSON.stringify(parsed);
       // Hanya update jika data dari Firestore berbeda dengan yang ada sekarang
       if(incomingSnap===_lastSavedSnapshot) return;
+      // Guard: jangan timpa db lokal kalau data Firestore lebih kosong
+      const _inKonten=(parsed.jadwal&&parsed.jadwal.length>0)||
+                      (parsed.suratTugas&&parsed.suratTugas.length>0)||
+                      (parsed.jenisKegiatan&&parsed.jenisKegiatan.length>0)||
+                      (parsed.pegawai&&parsed.pegawai.length>2);
+      const _loKonten=(db.jadwal&&db.jadwal.length>0)||
+                      (db.suratTugas&&db.suratTugas.length>0)||
+                      (db.jenisKegiatan&&db.jenisKegiatan.length>0)||
+                      (db.pegawai&&db.pegawai.length>2);
+      if(!_inKonten && _loKonten){
+        console.warn('[Firebase] Snapshot masuk lebih kosong dari data lokal — diabaikan untuk keamanan.');
+        return;
+      }
       db=_applyMigrasi(parsed);
       localStorage.setItem(DB_KEY, JSON.stringify(db));
       _lastSavedSnapshot=JSON.stringify(db);
@@ -1365,6 +1369,27 @@ let bayarFilterBulan=0, bayarFilterTahun=0; // 0 = semua bulan / semua tahun (fi
 // Link reset tersembunyi di awal; muncul saat user mengetik (ditangani doLogin/switchAuthTab)
 document.addEventListener('DOMContentLoaded',function(){
   // Semua link reset tersembunyi saat load - akan tampil via switchAuthTab
+
+  // Pasang autocomplete=off ke semua input kecuali field login & password
+  // agar Chrome tidak menawarkan update password di form lain
+  const skipIds = new Set(['auth-user','auth-pass']);
+  document.querySelectorAll('input:not([type="password"])').forEach(el=>{
+    if(!skipIds.has(el.id)) el.setAttribute('autocomplete','off');
+  });
+
+  // Pantau DOM baru yang ditambahkan secara dinamis (modal, form, dll)
+  new MutationObserver(mutations=>{
+    mutations.forEach(m=>{
+      m.addedNodes.forEach(node=>{
+        if(node.nodeType!==1) return;
+        const inputs = node.matches('input') ? [node] : [...node.querySelectorAll('input')];
+        inputs.forEach(el=>{
+          if(el.type!=='password' && !skipIds.has(el.id))
+            el.setAttribute('autocomplete','off');
+        });
+      });
+    });
+  }).observe(document.body,{childList:true,subtree:true});
 });
 
 // ═══════════════════════════════════════════════
@@ -2318,7 +2343,7 @@ function _renderJKPanel(){
         ${editKeg?'✏️ Edit Jenis Kegiatan':'➕ Tambah Jenis Kegiatan Baru'}
       </div>
       <div style="display:flex;gap:10px;align-items:center">
-        <input type="text" id="jk-keg-input" placeholder="Nama jenis kegiatan, cth: Pelaksanaan Kelas Ibu Hamil"
+        <input type="text" id="jk-keg-input" autocomplete="off" placeholder="Nama jenis kegiatan, cth: Pelaksanaan Kelas Ibu Hamil"
           value="${editKeg?editKeg.nama.replace(/"/g,'&quot;'):''}"
           style="flex:1;padding:11px 14px;border:1.5px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;background:#fff;transition:border-color .2s;box-sizing:border-box"
           onfocus="this.style.borderColor='var(--teal)'"
@@ -6405,6 +6430,13 @@ function simpanJadwalForm(id){
   const pengikutIds=(window._tjPengikutRows||[])
     .map(r=>r.pegId).filter(pid=>pid&&!isNaN(pid)&&pid!==pegawaiUtamaId);
 
+  // Cek peringatan piket — tampilkan konfirmasi jika ada konflik
+  const warnPiket=document.getElementById('tj-piket-warning');
+  if(warnPiket&&warnPiket.style.display!=='none'&&warnPiket.innerHTML.trim()){
+    const pesanPiket=warnPiket.innerText||warnPiket.textContent||'';
+    if(!confirm('⚠️ PERINGATAN PIKET\n\n'+pesanPiket+'\n\nLanjutkan menyimpan jadwal ini?')) return;
+  }
+
   if(id){
     const j=db.jadwal.find(x=>x.id===id);
     // Hapus sub-jadwal saudara (pecahan tempat berangkat) yang lama jika ada
@@ -7060,7 +7092,8 @@ function cetakJadwalSemua(){
     let rowsHTML='';
     keys.forEach(kegiatan=>{
       const items=kelompok[kegiatan].slice().sort((a,b)=>{const tA=a.tanggal||'9999';const tB=b.tanggal||'9999';return tA>tB?1:-1;});
-      rowsHTML+=`<tr class="jk-group-row"><td class="jk-no">${no}</td><td colspan="5">${esc(kegiatan)}</td></tr>`;
+      rowsHTML+=`<tr class="jk-group-row"><td class="jk-no"><strong style="color:#000">${no}</strong></td><td colspan="5"><strong>${esc(kegiatan)}</strong></td></tr>`;
+      let subNo=1;
       items.forEach(j=>{
         const tipe=j.tipeTanggal||'pasti';
         const isSesuaikan=tipe==='disesuaikan';
@@ -7081,12 +7114,12 @@ function cetakJadwalSemua(){
         const petugasTeks=semuaPetugasIds.map(pid=>{const p=db.pegawai.find(x=>x.id===pid);return p?(p.namaPanggilan||p.nama.split(' ')[0]):'-';}).join(', ')||'-';
         const badgeSesuaikan=isSesuaikan?`<br><span style="display:inline-block;margin-top:2px;background:#fef3c7;color:#92400e;border-radius:8px;font-size:8px;font-weight:700;padding:1px 6px;letter-spacing:.3px">${ketSesuaikan||'DISESUAIKAN'}</span>`:'';
         rowsHTML+=`<tr>
-          <td class="jk-no"></td>
-          <td class="jk-c">${tgl}</td>
-          <td class="jk-c jk-hari">${esc(hari)}</td>
+          <td class="jk-no" style="color:#9ca3af;font-weight:400">${subNo++}</td>
+          <td class="jk-petugas">${esc(petugasTeks)}</td>
           <td class="jk-lokasi">${esc(lokNama)}${badgeSesuaikan}</td>
           <td>${esc(desaKel)}</td>
-          <td class="jk-petugas">${esc(petugasTeks)}</td>
+          <td class="jk-c jk-hari">${esc(hari)}</td>
+          <td class="jk-c">${tgl}</td>
         </tr>`;
       });
       no++;
@@ -7104,7 +7137,7 @@ function cetakJadwalSemua(){
           <span>Dicetak: ${tglCetak}</span>
         </div>
         <table class="jk-table">
-          <thead><tr><th style="width:8%">NO</th><th style="width:8%">TGL</th><th style="width:14%">HARI</th><th style="width:28%">LOKASI / TEMPAT</th><th style="width:20%">DESA / KELURAHAN</th><th style="width:22%">PETUGAS</th></tr></thead>
+          <thead><tr><th style="width:6%">NO</th><th style="width:22%">NAMA PETUGAS</th><th style="width:26%">LOKASI KEGIATAN</th><th style="width:18%">DESA / KELURAHAN</th><th style="width:12%">HARI</th><th style="width:16%">TANGGAL</th></tr></thead>
           <tbody>${rowsHTML}</tbody>
         </table>
       </div>`;
@@ -7131,21 +7164,24 @@ function cetakJadwalSemua(){
       @media screen{html{overflow-x:auto}}
       img{display:inline-block;max-width:100%}
       table{width:100%;border-collapse:collapse}
+      thead{display:table-header-group}
+      tbody{page-break-inside:auto}
+      tr{page-break-inside:avoid;page-break-after:auto}
       .jk-pagebreak{page-break-before:always}
-      .jk-section{margin-bottom:10mm;border:1px solid #c8960c}
+      .jk-section{margin-bottom:10mm;border:1px solid #969696}
       .jk-section-head{background:var(--sc);color:#fff;padding:10mm 5mm 6mm;text-align:center}
       .jk-badge-row{text-align:left;margin-bottom:4mm}
       .jk-badge{display:inline-block;background:#fff;color:var(--sc);font-size:9pt;font-weight:900;border-radius:12px;padding:4px 12px;white-space:nowrap;letter-spacing:0.5px;font-family:'Roboto',Arial,sans-serif}
       .jk-section-title{font-size:18pt;font-weight:900;white-space:normal;line-height:1.4;font-family:'Roboto',Arial,sans-serif}
       .jk-section-sub{font-size:10pt;opacity:.85;margin-top:5px;white-space:normal;font-weight:700;letter-spacing:0.3px;font-family:'Roboto',Arial,sans-serif}
       .jk-meta{display:flex;justify-content:space-between;font-size:7.5pt;color:#6b7280;padding:3mm 3mm 1mm;font-weight:700}
-      .jk-table th{background:var(--sc);color:#fff;font-size:8.5pt;padding:6px 5px;border:1px solid #c8960c;text-align:center;font-weight:700;font-family:'Roboto',Arial,sans-serif}
-      .jk-table td{border:1px solid #c8960c;padding:5px 5px;font-size:8.5pt;vertical-align:top;font-weight:500;font-family:'Roboto',Arial,sans-serif}
+      .jk-table th{background:var(--sc);color:#fff;font-size:8.5pt;padding:6px 5px;border:1px solid #969696;text-align:center;font-weight:700;font-family:'Roboto',Arial,sans-serif}
+      .jk-table td{border:1px solid #b0b0b0;padding:5px 5px;font-size:8.5pt;vertical-align:top;font-weight:500;font-family:'Roboto',Arial,sans-serif}
       .jk-table .jk-c{text-align:center}
       .jk-table .jk-hari{color:var(--sc);font-weight:900}
       .jk-table .jk-lokasi{font-weight:700}
       .jk-table .jk-petugas{color:var(--sc);font-weight:700}
-      .jk-table .jk-no{text-align:center;color:#c8960c;font-weight:900}
+      .jk-table .jk-no{text-align:center;color:#000;font-weight:900}
       .jk-group-row td{background:#fdf6e3;font-weight:900;font-size:9pt;font-family:'Roboto',Arial,sans-serif}
       .jk-footer{font-size:7.5pt;color:#6b7280;text-align:center;margin-top:4mm;font-weight:700;font-family:'Roboto',Arial,sans-serif}
     </style></head><body>
@@ -7426,6 +7462,12 @@ function simpanJadwal(id){
   const nomorUrut='';
   const nomorSurat='';
   if(!tanggal||!maksud||!lokasiId||!pegawaiUtamaId){showToast('Tanggal, maksud, lokasi, dan pegawai utama wajib diisi!','error');return;}
+  // Cek peringatan piket di elemen tj-piket-warning (form tambah/edit jadwal)
+  const _warnPiket=document.getElementById('tj-piket-warning');
+  if(_warnPiket&&_warnPiket.style.display!=='none'&&_warnPiket.innerHTML.trim()){
+    const _pesanPiket=_warnPiket.innerText||_warnPiket.textContent||'';
+    if(!confirm('⚠️ PERINGATAN PIKET\n\n'+_pesanPiket+'\n\nLanjutkan menyimpan jadwal ini?')) return;
+  }
   const pengikutIds=Array.from(document.querySelectorAll('#jf-pengikut-list input[type=checkbox]:checked')).map(cb=>parseInt(cb.value)).filter(id2=>!isNaN(id2)&&id2!==pegawaiUtamaId);
   if(id){
     const j=db.jadwal.find(x=>x.id===id);
@@ -8852,10 +8894,11 @@ function genRPKPrintHTML(bulan,tahun,kelompok){
   keys.forEach(kegiatan=>{
     const items=kelompok[kegiatan].slice().sort((a,b)=>a.tanggal>b.tanggal?1:-1);
     rows+=`<tr>
-      <td style="background:#e6dcbe;color:#5f4b23;font-weight:700;text-align:center;font-size:11px;padding:6px;border:1px solid #969696;vertical-align:middle">${no}</td>
-      <td colspan="4" style="background:#f4efe3;color:#2d281e;font-weight:700;font-size:11px;padding:6px 8px;border:1px solid #969696;text-align:left">${esc(kegiatan)}</td>
+      <td style="background:#e6dcbe;color:#5f4b23;font-weight:700;text-align:center;font-size:11px;padding:6px;border:1px solid #969696;vertical-align:middle"><strong>${no}</strong></td>
+      <td colspan="4" style="background:#f4efe3;color:#2d281e;font-weight:700;font-size:11px;padding:6px 8px;border:1px solid #969696;text-align:left"><strong>${esc(kegiatan)}</strong></td>
     </tr>`;
     stripe=false;
+    let subNo=1;
     items.forEach(j=>{
       const tipe=j.tipeTanggal||'pasti';
       const isSesuaikan=tipe==='disesuaikan';
@@ -8880,7 +8923,7 @@ function genRPKPrintHTML(bulan,tahun,kelompok){
       stripe=!stripe;
       const badgeSesuaikan=isSesuaikan&&ketSesuaikan?`<br><span style="display:inline-block;margin-top:2px;background:#fef3c7;color:#92400e;border-radius:8px;font-size:8px;font-weight:700;padding:1px 6px;letter-spacing:.3px">${ketSesuaikan}</span>`:'';
       rows+=`<tr style="background:${bg}">
-        <td style="background:#f9f6ee;border:1px solid #b0b0b0"></td>
+        <td style="background:#f9f6ee;border:1px solid #b0b0b0;text-align:center;font-size:10px;color:#6b7280">${subNo++}</td>
         <td style="text-align:center;font-size:11px;color:${isSesuaikan?'#92400e':'#1c2127'};padding:5px;border:1px solid #b0b0b0">${tgl}</td>
         <td style="text-align:center;font-size:${isSesuaikan?'9px':'11px'};color:#1a6b6b;font-weight:700;padding:5px;border:1px solid #b0b0b0">${hari}</td>
         <td style="font-size:10.5px;color:#1c2127;font-weight:700;padding:5px 8px;border:1px solid #b0b0b0">${esc(lokNama)}${badgeSesuaikan}</td>
@@ -8932,6 +8975,9 @@ function previewRPK(){
       *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
       body{font-family:'Inter',Arial,sans-serif;color:#000;background:#fff}
       table{width:100%;border-collapse:collapse}
+      thead{display:table-header-group}
+      tbody{page-break-inside:auto}
+      tr{page-break-inside:avoid;page-break-after:auto}
       td,th{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
     </style></head><body>${html}</body></html>`);
   w.document.close();
@@ -9487,6 +9533,9 @@ function cetakLaporanMatrix(bulan,tahun){
     .judul-laporan hr{border:none;border-top:1.5px solid #c8960c;width:130px;margin:8px auto 0}
 
     table{border-collapse:collapse;width:100%;margin-top:6px}
+      thead{display:table-header-group}
+      tbody{page-break-inside:auto}
+      tr{page-break-inside:avoid;page-break-after:auto}
     thead th{background:#0d4444;color:#fff;font-family:'Segoe UI',sans-serif;font-size:8.6pt;font-weight:700;text-transform:uppercase;letter-spacing:.3px;padding:7px 6px;text-align:center;border:1px solid #000}
     tbody td{border:1px solid #5a7472;padding:6px 7px;font-size:9.6pt;vertical-align:middle;color:#111}
     tbody tr:nth-child(even){background:#e3f0ee}
@@ -9715,6 +9764,9 @@ function cetakMatrixGrid(bulan,tahun){
     .judul-wrap hr{border:none;border-top:2px solid #1a6b6b;width:120px;margin:7px auto 0}
 
     table{width:100%;border-collapse:collapse}
+      thead{display:table-header-group}
+      tbody{page-break-inside:auto}
+      tr{page-break-inside:avoid;page-break-after:auto}
     thead th{
       background:#1a6b6b;color:#fff;
       font-size:8.5pt;font-weight:400;text-transform:uppercase;letter-spacing:.4px;
@@ -9900,6 +9952,9 @@ function cetakDaftarBayar(){
     @page{size:landscape;margin:15mm}
     body{font-family:'Times New Roman',serif;font-size:10pt;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
     table{border-collapse:collapse;width:100%}
+      thead{display:table-header-group}
+      tbody{page-break-inside:auto}
+      tr{page-break-inside:avoid;page-break-after:auto}
     th,td{border:1.3px solid #000;padding:4px 6px;font-size:9pt;color:#000}
     th{background:#cfe9e6;font-weight:700}
     .badge{background:#bff0c8;padding:1px 6px;border-radius:10px;font-size:9pt;color:#0b5c2c;font-weight:700;border:1px solid #0b5c2c}
@@ -9980,6 +10035,9 @@ function cetakDaftarBayarParaf(bulanKey,label){
 
     /* ── Tabel Daftar Bayar ── */
     table.daftar{border-collapse:collapse;width:100%;margin:10px 0;table-layout:auto}
+      thead{display:table-header-group}
+      tbody{page-break-inside:auto}
+      tr{page-break-inside:avoid;page-break-after:auto}
     table.daftar th{border:1.2px solid #000;padding:5px 8px;text-align:center;font-size:9pt;font-weight:bold;background:#fff;vertical-align:middle}
     table.daftar td{border:1.2px solid #000;padding:5px 8px;vertical-align:middle}
     table.daftar td.nip-cell{white-space:nowrap;font-family:monospace;font-size:8.5pt;text-align:center}
@@ -12641,14 +12699,16 @@ function spBuildSuratPreview(grup, bulan, tahun, tglSuratVal, nomor, total){
 
   const tabelJadwal=Object.keys(kelompokMaksud).map((maksudKey,gi)=>{
     const items=kelompokMaksud[maksudKey];
+    let noBarisKelompok=0;
     const rows=items.map((j)=>{
+      noBarisKelompok++; const noBaris=noBarisKelompok;
       const lok=db.lokasi.find(l=>l.id===j.lokasiId);
       const lokNama=lok?lok.nama:'-';
       const lokDesa=lok?lok.desa||'-':'-';
       // Tandai baris jika ini kegiatan untuk sekolah penerima surat
       const isTujuan = isSekolah && lokasiIdTujuan.has(j.lokasiId);
       const rowBg   = isTujuan ? '#fff' : '#fff';
-      const bClr    = isTujuan ? '#555' : '#555';
+      const bClr    = '#b0b0b0';
       const fwBold  = isTujuan ? '700' : 'normal';
       const tandaCol= isTujuan
         ? `<span style="display:inline-block;font-size:9pt;font-weight:900;color:#000;line-height:1;-webkit-text-stroke:0.4px #000">✔</span>`
@@ -12679,19 +12739,19 @@ function spBuildSuratPreview(grup, bulan, tahun, tglSuratVal, nomor, total){
       const borderL = '';
       const stBg = isTujuan ? '#ffff80' : rowBg;
       return `<tr>
-        <td style="${borderL}border:1px solid ${bClr};padding:${pd};text-align:center;vertical-align:middle;font-size:${isSekolah?'7pt':'8pt'};word-break:break-word;background:${stBg};white-space:nowrap">${tandaCol}</td>
-        <td style="border:1px solid ${bClr};padding:${pd};text-align:center;vertical-align:middle;font-size:${fsDate};word-break:break-word;background:${stBg};color:${isSesuaikan?'#555':'#000'};font-weight:${fwBold}">${tglTampil}</td>
-        <td style="border:1px solid ${bClr};padding:${pd};text-align:center;vertical-align:middle;font-size:${fs};font-weight:${fwBold};word-break:break-word;background:${stBg};">${hariTampil}</td>
+        <td style="${borderL}border:1px solid ${bClr};padding:${pd};text-align:center;vertical-align:middle;font-size:${isSekolah?'7pt':'8pt'};word-break:break-word;background:${stBg};white-space:nowrap;color:#999;font-weight:400">${isSekolah?tandaCol:noBaris}</td>
         <td style="border:1px solid ${bClr};padding:${pd2};vertical-align:middle;font-size:${fs};font-weight:${isTujuan?'700':'600'};word-break:break-word;overflow-wrap:break-word;background:${stBg};">${lokNama}</td>
         <td style="border:1px solid ${bClr};padding:${pd2};vertical-align:middle;font-size:${fs};word-break:break-word;overflow-wrap:break-word;background:${stBg};font-weight:${fwBold}">${lokDesa}</td>
+        <td style="border:1px solid ${bClr};padding:${pd};text-align:center;vertical-align:middle;font-size:${fs};font-weight:${fwBold};word-break:break-word;background:${stBg};">${hariTampil}</td>
+        <td style="border:1px solid ${bClr};padding:${pd};text-align:center;vertical-align:middle;font-size:${fsDate};word-break:break-word;background:${stBg};color:${isSesuaikan?'#555':'#000'};font-weight:${fwBold}">${tglTampil}</td>
       </tr>`;
     }).join('');
     const catNum=gi+1 < 10 ? '0'+(gi+1) : gi+1;
     const catFs = isSekolah ? '8pt' : '9.5pt';
     const catPd = isSekolah ? '2px 4px' : '4px 6px';
     return `<tr>
-      <td style="border:1px solid #555;padding:${catPd};text-align:center;vertical-align:middle;font-size:${catFs};font-weight:bold;word-break:break-word;background:#e5e7eb;color:#111">${catNum}.</td>
-      <td colspan="4" style="border:1px solid #555;padding:${catPd};text-align:left;vertical-align:middle;font-size:${catFs};font-weight:bold;word-break:break-word;background:#e5e7eb;color:#111">${maksudKey}</td>
+      <td style="border:1px solid #969696;padding:${catPd};text-align:center;vertical-align:middle;font-size:${catFs};font-weight:bold;word-break:break-word;background:#e5e7eb;color:#111">${catNum}.</td>
+      <td colspan="4" style="border:1px solid #969696;padding:${catPd};text-align:left;vertical-align:middle;font-size:${catFs};font-weight:bold;word-break:break-word;background:#e5e7eb;color:#111">${maksudKey}</td>
     </tr>${rows}`;
   }).join('');
 
@@ -12810,18 +12870,18 @@ function spBuildSuratPreview(grup, bulan, tahun, tglSuratVal, nomor, total){
           <table style="width:100%;max-width:100%;border-collapse:collapse;font-size:${isSekolah?'8pt':'9.5pt'};table-layout:fixed">
             <colgroup>
               <col style="width:${isSekolah?'7%':'6%'}">
-              <col style="width:${isSekolah?'7%':'8%'}">
-              <col style="width:${isSekolah?'12%':'13%'}">
-              <col style="width:${isSekolah?'50%':'50%'}">
-              <col style="width:${isSekolah?'24%':'23%'}">
+              <col style="width:${isSekolah?'47%':'48%'}">
+              <col style="width:${isSekolah?'22%':'22%'}">
+              <col style="width:${isSekolah?'12%':'12%'}">
+              <col style="width:${isSekolah?'12%':'12%'}">
             </colgroup>
             <thead>
               <tr style="background:#e5e7eb;color:#111">
-                <th style="border:1px solid #555;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">${isSekolah?'KET.':'NO.'}</th>
-                <th style="border:1px solid #555;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">TGL</th>
-                <th style="border:1px solid #555;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">HARI</th>
-                <th style="border:1px solid #555;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">LOKASI / TEMPAT</th>
-                <th style="border:1px solid #555;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">DESA / KELURAHAN</th>
+                <th style="border:1px solid #969696;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">${isSekolah?'KET.':'NO.'}</th>
+                <th style="border:1px solid #969696;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">LOKASI KEGIATAN</th>
+                <th style="border:1px solid #969696;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">DESA / KELURAHAN</th>
+                <th style="border:1px solid #969696;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">HARI</th>
+                <th style="border:1px solid #969696;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">TANGGAL</th>
               </tr>
             </thead>
             <tbody>${tabelJadwal}</tbody>
@@ -12893,6 +12953,9 @@ function spCetakSatu(suratId){
         @media screen{html{overflow-x:auto}}
         img{display:inline-block;max-width:100%;height:auto}
         table{width:100%;border-collapse:collapse}
+      thead{display:table-header-group}
+      tbody{page-break-inside:auto}
+      tr{page-break-inside:avoid;page-break-after:auto}
         td,th{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
         [id^="sp-surat-"]{border:none!important;box-shadow:none!important;border-radius:0!important;max-width:100%!important;padding:0!important}
         .halaman{font-family:'Times New Roman',Times,serif;font-size:12pt;color:#000;background:#fff;padding:0;width:100%;margin:0 auto;box-sizing:border-box}
