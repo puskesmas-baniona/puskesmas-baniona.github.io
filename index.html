@@ -7168,7 +7168,7 @@ function cetakJadwalSemua(){
       tbody{page-break-inside:auto}
       tr{page-break-inside:avoid;page-break-after:auto}
       .jk-pagebreak{page-break-before:always}
-      .jk-section{margin-bottom:10mm;border:1px solid #969696}
+      .jk-section{margin-bottom:10mm;border:2px solid #1a6b6b}
       .jk-section-head{background:var(--sc);color:#fff;padding:10mm 5mm 6mm;text-align:center}
       .jk-badge-row{text-align:left;margin-bottom:4mm}
       .jk-badge{display:inline-block;background:#fff;color:var(--sc);font-size:9pt;font-weight:900;border-radius:12px;padding:4px 12px;white-space:nowrap;letter-spacing:0.5px;font-family:'Roboto',Arial,sans-serif}
@@ -7176,9 +7176,9 @@ function cetakJadwalSemua(){
       .jk-section-sub{font-size:10pt;opacity:.85;margin-top:5px;white-space:normal;font-weight:700;letter-spacing:0.3px;font-family:'Roboto',Arial,sans-serif}
       .jk-meta{display:flex;justify-content:space-between;font-size:7.5pt;color:#6b7280;padding:3mm 3mm 1mm;font-weight:700}
       .jk-table th{background:var(--sc);color:#fff;font-size:8.5pt;padding:6px 5px;border:1px solid #969696;text-align:center;font-weight:700;font-family:'Roboto',Arial,sans-serif}
-      .jk-table td{border:1px solid #b0b0b0;padding:5px 5px;font-size:8.5pt;vertical-align:top;font-weight:500;font-family:'Roboto',Arial,sans-serif}
+      .jk-table td{border:1px solid #969696;padding:5px 5px;font-size:8.5pt;vertical-align:top;font-weight:500;font-family:'Roboto',Arial,sans-serif}
       .jk-table .jk-c{text-align:center}
-      .jk-table .jk-hari{color:var(--sc);font-weight:900}
+      .jk-table .jk-hari{color:#000;font-weight:500}
       .jk-table .jk-lokasi{font-weight:700}
       .jk-table .jk-petugas{color:var(--sc);font-weight:700}
       .jk-table .jk-no{text-align:center;color:#000;font-weight:900}
@@ -8924,17 +8924,17 @@ function genRPKPrintHTML(bulan,tahun,kelompok){
       const badgeSesuaikan=isSesuaikan&&ketSesuaikan?`<br><span style="display:inline-block;margin-top:2px;background:#fef3c7;color:#92400e;border-radius:8px;font-size:8px;font-weight:700;padding:1px 6px;letter-spacing:.3px">${ketSesuaikan}</span>`:'';
       rows+=`<tr style="background:${bg}">
         <td style="background:#f9f6ee;border:1px solid #b0b0b0;text-align:center;font-size:10px;color:#6b7280">${subNo++}</td>
-        <td style="text-align:center;font-size:11px;color:${isSesuaikan?'#92400e':'#1c2127'};padding:5px;border:1px solid #b0b0b0">${tgl}</td>
-        <td style="text-align:center;font-size:${isSesuaikan?'9px':'11px'};color:#1a6b6b;font-weight:700;padding:5px;border:1px solid #b0b0b0">${hari}</td>
-        <td style="font-size:10.5px;color:#1c2127;font-weight:700;padding:5px 8px;border:1px solid #b0b0b0">${esc(lokNama)}${badgeSesuaikan}</td>
         <td style="font-size:10.5px;color:#1a6b6b;padding:5px 8px;border:1px solid #b0b0b0">${esc(allPetugas)}</td>
+        <td style="font-size:10.5px;color:#1c2127;font-weight:700;padding:5px 8px;border:1px solid #b0b0b0">${esc(lokNama)}${badgeSesuaikan}</td>
+        <td style="text-align:center;font-size:${isSesuaikan?'9px':'11px'};color:#000;font-weight:400;padding:5px;border:1px solid #b0b0b0">${hari}</td>
+        <td style="text-align:center;font-size:11px;color:${isSesuaikan?'#92400e':'#1c2127'};padding:5px;border:1px solid #b0b0b0">${tgl}</td>
       </tr>`;
     });
     no++;
   });
   return `
-  <div style="font-family:'Inter',Arial,sans-serif">
-    <div style="background:#1a6b6b;color:#fff;padding:14px 18px;text-align:center;border:1px solid #969696">
+  <div style="font-family:'Inter',Arial,sans-serif;border:2px solid #1a6b6b">
+    <div style="background:#1a6b6b;color:#fff;padding:14px 18px;text-align:center">
       <h2 style="margin:0;font-size:16px;font-weight:700;letter-spacing:.5px">RENCANA PELAKSANAAN KEGIATAN</h2>
       <p style="margin:4px 0 0;font-size:11px;color:#d2fae1;font-weight:500">BULAN ${NAMA_BULAN_ID[bulan-1].toUpperCase()} ${tahun}</p>
     </div>
@@ -8945,11 +8945,11 @@ function genRPKPrintHTML(bulan,tahun,kelompok){
     <table style="width:100%;border-collapse:collapse">
       <thead>
         <tr style="background:#1a6b6b;color:#fff">
-          <th style="padding:7px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;width:28px">No</th>
-          <th style="padding:7px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;width:32px">Tgl</th>
-          <th style="padding:7px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;width:60px">Hari</th>
-          <th style="padding:7px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;text-align:left">Lokasi / Tempat</th>
-          <th style="padding:7px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;text-align:left">Petugas</th>
+          <th style="padding:7px 4px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;width:38px;white-space:nowrap;text-align:center">No</th>
+          <th style="padding:7px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;text-align:left">Nama Petugas</th>
+          <th style="padding:7px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;text-align:left">Lokasi Kegiatan</th>
+          <th style="padding:7px 4px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;width:60px;white-space:nowrap;text-align:center">Hari</th>
+          <th style="padding:7px 4px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;width:42px;white-space:nowrap;text-align:center">Tgl</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -8966,20 +8966,22 @@ function previewRPK(){
   const keys=Object.keys(kelompok);
   if(!keys.length){showToast('Tidak ada data untuk dicetak','error');return;}
   const html=genRPKPrintHTML(bulan,tahun,kelompok);
-  const w=window.open('','_blank','width=960,height=800');
+  const w=window.open('','_blank','width=1100,height=860');
   if(!w){ showToast('Popup diblokir. Izinkan pop-up untuk browser ini.','error'); return; }
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
     <title>RPK ${NAMA_BULAN_ID[bulan-1]} ${tahun} – UPTD Puskesmas Baniona</title>
     <style>
       @page { size: 215mm 330mm; margin: 10mm 15mm 20mm 20mm; }
       *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
-      body{font-family:'Inter',Arial,sans-serif;color:#000;background:#fff}
-      table{width:100%;border-collapse:collapse}
+      body{font-family:'Inter',Arial,sans-serif;color:#000;background:#fff;min-width:700px}
+      table{width:100%;border-collapse:collapse;table-layout:fixed}
       thead{display:table-header-group}
       tbody{page-break-inside:auto}
       tr{page-break-inside:avoid;page-break-after:auto}
-      td,th{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-    </style></head><body>${html}</body></html>`);
+      td,th{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;word-wrap:break-word;overflow-wrap:break-word}
+      @media screen{body{padding:12px;background:#f0f0f0}.rpk-wrap{background:#fff;padding:16px;border-radius:6px;box-shadow:0 2px 12px rgba(0,0,0,.12);max-width:900px;margin:0 auto}}
+      @media print{body{background:#fff;padding:0}.rpk-wrap{padding:0;box-shadow:none}}
+    </style></head><body><div class="rpk-wrap">${html}</div></body></html>`);
   w.document.close();
   setTimeout(()=>w.print(),500);
 }
@@ -12867,7 +12869,7 @@ function spBuildSuratPreview(grup, bulan, tahun, tglSuratVal, nomor, total){
           <div style="text-align:center;font-weight:bold;margin-bottom:2px;font-size:${isSekolah?'10pt':'11.5pt'}">LAMPIRAN SURAT</div>
           <div style="text-align:center;font-weight:bold;margin-bottom:2px;font-size:${isSekolah?'10pt':'11.5pt'}">JADWAL KEGIATAN UKM PUSKESMAS BANIONA</div>
           <div style="text-align:center;margin-bottom:${isSekolah?'6px':'10px'};font-size:${isSekolah?'9.5pt':'11pt'}">${namaBulan.toUpperCase()} ${tahun}</div>
-          <table style="width:100%;max-width:100%;border-collapse:collapse;font-size:${isSekolah?'8pt':'9.5pt'};table-layout:fixed">
+          <table style="width:100%;max-width:100%;border-collapse:collapse;font-size:${isSekolah?'8pt':'9.5pt'};table-layout:fixed;border:2px solid #6b7280">
             <colgroup>
               <col style="width:${isSekolah?'7%':'6%'}">
               <col style="width:${isSekolah?'47%':'48%'}">
