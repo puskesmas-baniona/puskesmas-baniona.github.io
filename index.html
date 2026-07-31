@@ -8889,27 +8889,37 @@ function rpkRefresh(){
       <button class="btn btn-primary" onclick="bukaEditJadwal(null,'rpk')" style="padding:10px 24px;font-size:13px">+ Tambah Kegiatan Baru</button>
     </div>`;
 
-  // Highlight baris jadwal baru sesaat
+  // Highlight baris jadwal baru/diedit sesaat
   if(window._newJadwalId){
     const nid=window._newJadwalId;
     window._newJadwalId=null;
     setTimeout(()=>{
       const row=wrap.querySelector(`[data-jadwal-id="${nid}"]`);
       if(!row) return;
-      row.scrollIntoView({behavior:'smooth',block:'center'});
+      // Highlight dulu sebelum scroll agar user tahu baris mana yang dituju
       row.style.transition='background .3s';
       row.style.background='#fef08a';
       row.style.outline='2.5px solid #f59e0b';
       row.style.outlineOffset='-2px';
       const badge=row.querySelector('.rpk-badge-baru');
       if(badge){ badge.style.display='inline-block'; }
+      // Scroll setelah 1 frame render selesai — akurat di desktop & HP lambat
+      requestAnimationFrame(()=>{
+        const topbar=document.querySelector('.topbar');
+        const topbarH=topbar?topbar.getBoundingClientRect().height:60;
+        const rowRect=row.getBoundingClientRect();
+        const scrollY=window.scrollY||window.pageYOffset;
+        const rowTop=rowRect.top+scrollY;
+        const targetScroll=rowTop-topbarH-16;
+        window.scrollTo({top:targetScroll,behavior:'smooth'});
+      });
       setTimeout(()=>{
         row.style.transition='background 1.2s, outline 1.2s';
         row.style.background='';
         row.style.outline='';
         if(badge){ badge.style.transition='opacity 1s'; badge.style.opacity='0'; setTimeout(()=>badge.remove(),1000); }
       },4000);
-    },120);
+    },200);
   }
   
 }
