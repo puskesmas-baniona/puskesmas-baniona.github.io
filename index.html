@@ -8900,8 +8900,8 @@ function rpkRefresh(){
       if(!row) return;
       // Highlight dulu sebelum scroll agar user tahu baris mana yang dituju
       row.style.transition='background .3s';
-      row.style.background='#fef08a';
-      row.style.outline='2.5px solid #f59e0b';
+      row.style.background='#41e506';
+      row.style.outline='2.5px solid #fbff00';
       row.style.outlineOffset='-2px';
       const badge=row.querySelector('.rpk-badge-baru');
       if(badge){ badge.style.display='inline-block'; }
@@ -11364,7 +11364,11 @@ function savePresensiDB(){
     const fbDoc=_getPresensiFirestoreDoc();
     if(fbDoc){
       fbDoc.set({ data: JSON.stringify(data), updatedAt: data.savedAt })
-        .then(()=>console.log('[Firebase] Presensi tersimpan ke Firestore ✅'))
+        .then(()=>{
+          console.log('[Firebase] Presensi tersimpan ke Firestore ✅');
+          const el=document.getElementById("save-indicator");
+          if(el){el.className="saved";el.innerHTML="☁️ Tersimpan di Cloud";clearTimeout(el._hideTimer);el._hideTimer=setTimeout(()=>{el.className="";el.innerHTML="";},2500);}
+        })
         .catch(err=>console.warn('[Firebase] Gagal simpan presensi ke Firestore:', err));
     }
   }catch(e){console.warn("savePresensiDB error:",e);}
@@ -11560,11 +11564,12 @@ function autoSave(){
 }
 
 function _showSaveIndicator(){
-  let el=document.getElementById("saveIndicator");
+  let el=document.getElementById("save-indicator");
   if(!el) return;
-  el.style.opacity="1";
+  el.className="saved";
+  el.innerHTML="💾 Tersimpan Lokal";
   clearTimeout(el._hideTimer);
-  el._hideTimer=setTimeout(()=>{el.style.opacity="0";},2000);
+  el._hideTimer=setTimeout(()=>{el.className="";el.innerHTML="";},2500);
 }
 
 const KET_TH_LIST = [
