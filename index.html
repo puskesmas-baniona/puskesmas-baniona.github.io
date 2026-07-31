@@ -2442,7 +2442,7 @@ function _renderJKPanel(){
           </thead>
           <tbody>
             ${kegs.map((keg,ki)=>`
-              <tr style="border-bottom:1px solid #f0f0f0">
+              <tr id="jk-row-${keg.id}" style="border-bottom:1px solid #f0f0f0;transition:background .3s">
                 <td style="padding:9px 14px;text-align:center;color:var(--muted);font-size:13px">${ki+1}</td>
                 <td style="padding:9px 14px;font-size:13px">${keg.nama}</td>
                 <td style="padding:9px 14px;text-align:right;white-space:nowrap">
@@ -2521,7 +2521,25 @@ function _simpanKegiatan(){
 
 
 
+  // Simpan ID yang baru disimpan/diedit sebelum re-render
+  const _jkLastSavedId = _jkEditKegId
+    ? _jkEditKegId
+    : (db.jenisKegiatan.length ? db.jenisKegiatan[db.jenisKegiatan.length-1].id : null);
+
   saveDB(); _renderJKPanel();
+
+  // Scroll ke baris yang baru disimpan dan highlight
+  if(_jkLastSavedId){
+    setTimeout(()=>{
+      const row=document.getElementById('jk-row-'+_jkLastSavedId);
+      if(row){
+        row.scrollIntoView({behavior:'smooth',block:'center'});
+        row.style.background='#d1fae5';
+        setTimeout(()=>{ row.style.background=''; },1800);
+      }
+    },120);
+  }
+
   // Jika panel RPK sedang aktif di tab lain / masih ter-render, segarkan agar perubahan langsung terlihat.
   const rpkPanel=document.getElementById('panel-rpk');
   if(rpkPanel && rpkPanel.classList.contains('active') && typeof rpkRefresh==='function'){
@@ -4498,8 +4516,8 @@ function kirimSemuaST(){
   // Cek apakah masih ada yang belum punya nomor setelah sinkronisasi
   const tanpaNomor=akanDikirim.filter(s=>!s.nomorST||!s.nomorST.trim());
   if(tanpaNomor.length){
-    showToast(`❌ ${tanpaNomor.length} Surat Tugas belum memiliki nomor surat. Lakukan Finalisasi Nomor terlebih dahulu sebelum mengirim.`,'error');
-    return;
+    const lanjut=confirm(`⚠️ ${tanpaNomor.length} Surat Tugas belum memiliki nomor surat.\n\nAnda tetap bisa mengirim sekarang, namun disarankan melakukan Finalisasi Nomor terlebih dahulu.\n\nLanjutkan pengiriman?`);
+    if(!lanjut) return;
   }
   const pesanSkip=skipDisesuaikan.length?` (${skipDisesuaikan.length} surat jadwal DISESUAIKAN dilewati)`:'';
   if(!confirm(`Kirim/tandai ${akanDikirim.length} Surat Tugas sebagai "Terkirim" ke pegawai terkait?${pesanSkip}`)) return;
@@ -6467,6 +6485,7 @@ function simpanJadwalForm(id){
       });
     }
     window._tjSiblingIds=[];
+    if(j) window._newJadwalId=j.id;
     showToast('Jadwal berhasil diperbarui ✓','success');
   } else {
     // Cek duplikat: tanggal + maksud + lokasi yang persis sama tidak boleh ditimpa
@@ -7116,10 +7135,10 @@ function cetakJadwalSemua(){
         rowsHTML+=`<tr>
           <td class="jk-no" style="color:#9ca3af;font-weight:400">${subNo++}</td>
           <td class="jk-petugas">${esc(petugasTeks)}</td>
-          <td class="jk-lokasi">${esc(lokNama)}${badgeSesuaikan}</td>
-          <td>${esc(desaKel)}</td>
           <td class="jk-c jk-hari">${esc(hari)}</td>
           <td class="jk-c">${tgl}</td>
+          <td class="jk-lokasi">${esc(lokNama)}${badgeSesuaikan}</td>
+          <td>${esc(desaKel)}</td>
         </tr>`;
       });
       no++;
@@ -7137,15 +7156,15 @@ function cetakJadwalSemua(){
           <span>Dicetak: ${tglCetak}</span>
         </div>
         <table class="jk-table">
-          <thead><tr><th style="width:6%">NO</th><th style="width:22%">NAMA PETUGAS</th><th style="width:26%">LOKASI KEGIATAN</th><th style="width:18%">DESA / KELURAHAN</th><th style="width:12%">HARI</th><th style="width:16%">TANGGAL</th></tr></thead>
+          <thead><tr><th style="width:5%">NO</th><th style="width:20%">NAMA PETUGAS</th><th style="width:15%">HARI</th><th style="width:12%">TANGGAL</th><th style="width:30%">LOKASI KEGIATAN</th><th style="width:18%">DESA / KELURAHAN</th></tr></thead>
           <tbody>${rowsHTML}</tbody>
         </table>
       </div>`;
   }
 
   const bodyHTML=
-    buildSeksiHTML(jadwalDesa,'#1a6b6b','🏘️ DESA','Jadwal Kegiatan di Desa / Posyandu',false)+
-    buildSeksiHTML(jadwalSekolah,'#3730a3','🏫 SEKOLAH','Jadwal Kegiatan di Sekolah',true);
+    buildSeksiHTML(jadwalDesa,'#2d7a6a','🏘️ DESA','Jadwal Kegiatan di Desa / Posyandu',false)+
+    buildSeksiHTML(jadwalSekolah,'#4a47a3','🏫 SEKOLAH','Jadwal Kegiatan di Sekolah',true);
 
   if(!bodyHTML){showToast('Tidak ada data untuk dicetak','error');return;}
 
@@ -7169,11 +7188,11 @@ function cetakJadwalSemua(){
       tr{page-break-inside:avoid;page-break-after:auto}
       .jk-pagebreak{page-break-before:always}
       .jk-section{margin-bottom:10mm;border:2px solid #1a6b6b}
-      .jk-section-head{background:var(--sc);color:#fff;padding:10mm 5mm 6mm;text-align:center}
-      .jk-badge-row{text-align:left;margin-bottom:4mm}
-      .jk-badge{display:inline-block;background:#fff;color:var(--sc);font-size:9pt;font-weight:900;border-radius:12px;padding:4px 12px;white-space:nowrap;letter-spacing:0.5px;font-family:'Roboto',Arial,sans-serif}
-      .jk-section-title{font-size:18pt;font-weight:900;white-space:normal;line-height:1.4;font-family:'Roboto',Arial,sans-serif}
-      .jk-section-sub{font-size:10pt;opacity:.85;margin-top:5px;white-space:normal;font-weight:700;letter-spacing:0.3px;font-family:'Roboto',Arial,sans-serif}
+      .jk-section-head{background:var(--sc);color:#fff;padding:5mm 5mm 5mm;text-align:center}
+      .jk-badge-row{text-align:left;margin-bottom:2mm}
+      .jk-badge{display:inline-block;background:#fff;color:var(--sc);font-size:7.5pt;font-weight:900;border-radius:8px;padding:2px 8px;white-space:nowrap;letter-spacing:0.5px;font-family:'Roboto',Arial,sans-serif}
+      .jk-section-title{font-size:16pt;font-weight:900;white-space:normal;line-height:1.3;font-family:'Roboto',Arial,sans-serif}
+      .jk-section-sub{font-size:9pt;opacity:.85;margin-top:3px;white-space:normal;font-weight:700;letter-spacing:0.3px;font-family:'Roboto',Arial,sans-serif}
       .jk-meta{display:flex;justify-content:space-between;font-size:7.5pt;color:#6b7280;padding:3mm 3mm 1mm;font-weight:700}
       .jk-table th{background:var(--sc);color:#fff;font-size:8.5pt;padding:6px 5px;border:1px solid #969696;text-align:center;font-weight:700;font-family:'Roboto',Arial,sans-serif}
       .jk-table td{border:1px solid #969696;padding:5px 5px;font-size:8.5pt;vertical-align:top;font-weight:500;font-family:'Roboto',Arial,sans-serif}
@@ -8679,7 +8698,7 @@ function rpkRefresh(){
     // Baris judul kegiatan (kuning)
     tableHTML+=`<tr style="background:#fffacd;border-top:2px solid #d4a500;border-bottom:2px solid #d4a500">
       <td style="padding:8px 6px;text-align:center;font-weight:bold;color:#332200;font-size:12px;border-right:1px solid #d4a500">${no}</td>
-      <td colspan="6" style="padding:8px;font-weight:bold;color:#332200;font-size:12px;letter-spacing:0.5px;text-align:left">${kegiatan}</td>
+      <td colspan="6" style="padding:8px;font-weight:bold;color:#332200;font-size:12px;letter-spacing:0.5px;text-align:left;word-break:break-word;overflow-wrap:break-word">${kegiatan}</td>
     </tr>`;
 
     // Gabungkan jadwal tanggal+lokasi sama (pecahan tempat berangkat berbeda) jadi satu baris
@@ -8782,9 +8801,9 @@ function rpkRefresh(){
         <td style="padding:6px;text-align:center;font-size:11px;color:#6b7280;border-right:1px solid #e5e7eb"></td>
         <td style="padding:6px;text-align:center;font-size:11px;color:#1c2127;border-right:1px solid #e5e7eb">${tglAngka}</td>
         <td style="padding:6px;text-align:center;font-size:11px;color:#1a6b6b;font-weight:600;border-right:1px solid #e5e7eb">${hari}</td>
-        <td style="padding:6px;font-size:11px;color:#1c2127;border-right:1px solid #e5e7eb"><strong>${lokNama}</strong><span class="rpk-badge-baru" style="display:none;margin-left:6px;background:#f59e0b;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:20px;vertical-align:middle;white-space:nowrap">✨ Baru ditambahkan</span></td>
-        <td style="padding:6px;font-size:11px;color:#1a6b6b;border-right:1px solid #e5e7eb">${formattedPetugas}</td>
-        <td style="padding:6px;font-size:10px;color:#374151;border-right:1px solid #e5e7eb;white-space:nowrap">${nomorDisplay}</td>
+        <td style="padding:6px;font-size:11px;color:#1c2127;border-right:1px solid #e5e7eb;word-break:break-word;overflow-wrap:break-word"><strong>${lokNama}</strong><span class="rpk-badge-baru" style="display:none;margin-left:6px;background:#f59e0b;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:20px;vertical-align:middle;white-space:nowrap">✨ Baru ditambahkan</span></td>
+        <td style="padding:6px;font-size:11px;color:#1a6b6b;border-right:1px solid #e5e7eb;word-break:break-word;overflow-wrap:break-word">${formattedPetugas}</td>
+        <td style="padding:6px;font-size:10px;color:#374151;border-right:1px solid #e5e7eb;word-break:break-word;overflow-wrap:break-word">${nomorDisplay}</td>
         <td style="padding:6px;text-align:center"><div style="display:flex;flex-direction:column;align-items:center">${aksiHTML}</div></td>
       </tr>`;
       stripe=!stripe;
@@ -8829,16 +8848,25 @@ function rpkRefresh(){
       
       <!-- TABLE -->
       <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-family:'Inter',sans-serif">
+        <table style="width:100%;min-width:600px;border-collapse:separate;border-spacing:0;font-family:'Inter',sans-serif">
+          <colgroup>
+            <col style="width:44px">
+            <col style="width:52px">
+            <col style="width:70px">
+            <col>
+            <col>
+            <col style="width:160px">
+            <col style="width:110px">
+          </colgroup>
           <thead>
             <tr style="background:#1a6b6b;color:white">
-              <th style="padding:10px 6px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border-right:1px solid rgba(255,255,255,.18);width:40px">NO</th>
-              <th style="padding:10px 6px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border-right:1px solid rgba(255,255,255,.18);width:60px">TGL</th>
-              <th style="padding:10px 6px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border-right:1px solid rgba(255,255,255,.18);width:80px">HARI</th>
+              <th style="padding:10px 6px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border-right:1px solid rgba(255,255,255,.18)">NO</th>
+              <th style="padding:10px 6px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border-right:1px solid rgba(255,255,255,.18)">TGL</th>
+              <th style="padding:10px 6px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border-right:1px solid rgba(255,255,255,.18)">HARI</th>
               <th style="padding:10px 6px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border-right:1px solid rgba(255,255,255,.18)">LOKASI / TEMPAT</th>
               <th style="padding:10px 6px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border-right:1px solid rgba(255,255,255,.18)">PETUGAS</th>
               <th style="padding:10px 6px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border-right:1px solid rgba(255,255,255,.18)">NOMOR SURAT</th>
-              <th style="padding:10px 6px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;width:90px">AKSI</th>
+              <th style="padding:10px 6px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">AKSI</th>
             </tr>
           </thead>
           <tbody>
@@ -8895,7 +8923,7 @@ function genRPKPrintHTML(bulan,tahun,kelompok){
     const items=kelompok[kegiatan].slice().sort((a,b)=>a.tanggal>b.tanggal?1:-1);
     rows+=`<tr>
       <td style="background:#e6dcbe;color:#5f4b23;font-weight:700;text-align:center;font-size:11px;padding:6px;border:1px solid #969696;vertical-align:middle"><strong>${no}</strong></td>
-      <td colspan="4" style="background:#f4efe3;color:#2d281e;font-weight:700;font-size:11px;padding:6px 8px;border:1px solid #969696;text-align:left"><strong>${esc(kegiatan)}</strong></td>
+      <td colspan="5" style="background:#f4efe3;color:#2d281e;font-weight:700;font-size:11px;padding:6px 8px;border:1px solid #969696;text-align:left"><strong>${esc(kegiatan)}</strong></td>
     </tr>`;
     stripe=false;
     let subNo=1;
@@ -8914,6 +8942,7 @@ function genRPKPrintHTML(bulan,tahun,kelompok){
       }
       const lok=db.lokasi.find(l=>l.id===j.lokasiId);
       const lokNama=lok?lok.nama:'-';
+      const lokDesa=lok?lok.desa:'-';
       const utamaId=j.originalPegawaiUtamaId||j.pegawaiUtamaId;
       const pengikutIds=j.originalPengikutIds||j.pengikutIds||[];
       const utama=db.pegawai.find(p=>p.id===utamaId);
@@ -8925,9 +8954,10 @@ function genRPKPrintHTML(bulan,tahun,kelompok){
       rows+=`<tr style="background:${bg}">
         <td style="background:#f9f6ee;border:1px solid #b0b0b0;text-align:center;font-size:10px;color:#6b7280">${subNo++}</td>
         <td style="font-size:10.5px;color:#1a6b6b;padding:5px 8px;border:1px solid #b0b0b0">${esc(allPetugas)}</td>
-        <td style="font-size:10.5px;color:#1c2127;font-weight:700;padding:5px 8px;border:1px solid #b0b0b0">${esc(lokNama)}${badgeSesuaikan}</td>
         <td style="text-align:center;font-size:${isSesuaikan?'9px':'11px'};color:#000;font-weight:400;padding:5px;border:1px solid #b0b0b0">${hari}</td>
         <td style="text-align:center;font-size:11px;color:${isSesuaikan?'#92400e':'#1c2127'};padding:5px;border:1px solid #b0b0b0">${tgl}</td>
+        <td style="font-size:10.5px;color:#1c2127;font-weight:700;padding:5px 8px;border:1px solid #b0b0b0">${esc(lokNama)}${badgeSesuaikan}</td>
+        <td style="font-size:10.5px;color:#1c2127;padding:5px 8px;border:1px solid #b0b0b0">${esc(lokDesa)}</td>
       </tr>`;
     });
     no++;
@@ -8945,11 +8975,12 @@ function genRPKPrintHTML(bulan,tahun,kelompok){
     <table style="width:100%;border-collapse:collapse">
       <thead>
         <tr style="background:#1a6b6b;color:#fff">
-          <th style="padding:7px 4px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;width:38px;white-space:nowrap;text-align:center">No</th>
-          <th style="padding:7px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;text-align:left">Nama Petugas</th>
-          <th style="padding:7px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;text-align:left">Lokasi Kegiatan</th>
-          <th style="padding:7px 4px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;width:60px;white-space:nowrap;text-align:center">Hari</th>
-          <th style="padding:7px 4px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;width:42px;white-space:nowrap;text-align:center">Tgl</th>
+          <th style="padding:7px 4px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;width:32px;white-space:nowrap;text-align:center">No</th>
+          <th style="padding:7px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;width:26%;text-align:left">Nama Petugas</th>
+          <th style="padding:7px 4px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;width:80px;white-space:nowrap;text-align:center">Hari</th>
+          <th style="padding:7px 4px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;width:36px;white-space:nowrap;text-align:center">Tgl</th>
+          <th style="padding:7px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;width:26%;text-align:left">Lokasi Kegiatan</th>
+          <th style="padding:7px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;border:1px solid #969696;width:18%;text-align:left">Desa/Kelurahan</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -12742,10 +12773,10 @@ function spBuildSuratPreview(grup, bulan, tahun, tglSuratVal, nomor, total){
       const stBg = isTujuan ? '#ffff80' : rowBg;
       return `<tr>
         <td style="${borderL}border:1px solid ${bClr};padding:${pd};text-align:center;vertical-align:middle;font-size:${isSekolah?'7pt':'8pt'};word-break:break-word;background:${stBg};white-space:nowrap;color:#999;font-weight:400">${isSekolah?tandaCol:noBaris}</td>
-        <td style="border:1px solid ${bClr};padding:${pd2};vertical-align:middle;font-size:${fs};font-weight:${isTujuan?'700':'600'};word-break:break-word;overflow-wrap:break-word;background:${stBg};">${lokNama}</td>
-        <td style="border:1px solid ${bClr};padding:${pd2};vertical-align:middle;font-size:${fs};word-break:break-word;overflow-wrap:break-word;background:${stBg};font-weight:${fwBold}">${lokDesa}</td>
         <td style="border:1px solid ${bClr};padding:${pd};text-align:center;vertical-align:middle;font-size:${fs};font-weight:${fwBold};word-break:break-word;background:${stBg};">${hariTampil}</td>
         <td style="border:1px solid ${bClr};padding:${pd};text-align:center;vertical-align:middle;font-size:${fsDate};word-break:break-word;background:${stBg};color:${isSesuaikan?'#555':'#000'};font-weight:${fwBold}">${tglTampil}</td>
+        <td style="border:1px solid ${bClr};padding:${pd2};vertical-align:middle;font-size:${fs};font-weight:${isTujuan?'700':'600'};word-break:break-word;overflow-wrap:break-word;background:${stBg};">${lokNama}</td>
+        <td style="border:1px solid ${bClr};padding:${pd2};vertical-align:middle;font-size:${fs};word-break:break-word;overflow-wrap:break-word;background:${stBg};font-weight:${fwBold}">${lokDesa}</td>
       </tr>`;
     }).join('');
     const catNum=gi+1 < 10 ? '0'+(gi+1) : gi+1;
@@ -12872,18 +12903,18 @@ function spBuildSuratPreview(grup, bulan, tahun, tglSuratVal, nomor, total){
           <table style="width:100%;max-width:100%;border-collapse:collapse;font-size:${isSekolah?'8pt':'9.5pt'};table-layout:fixed;border:2px solid #6b7280">
             <colgroup>
               <col style="width:${isSekolah?'7%':'6%'}">
-              <col style="width:${isSekolah?'47%':'48%'}">
-              <col style="width:${isSekolah?'22%':'22%'}">
+              <col style="width:${isSekolah?'18%':'18%'}">
               <col style="width:${isSekolah?'12%':'12%'}">
-              <col style="width:${isSekolah?'12%':'12%'}">
+              <col style="width:${isSekolah?'35%':'36%'}">
+              <col style="width:${isSekolah?'28%':'28%'}">
             </colgroup>
             <thead>
               <tr style="background:#e5e7eb;color:#111">
                 <th style="border:1px solid #969696;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">${isSekolah?'KET.':'NO.'}</th>
-                <th style="border:1px solid #969696;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">LOKASI KEGIATAN</th>
-                <th style="border:1px solid #969696;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">DESA / KELURAHAN</th>
                 <th style="border:1px solid #969696;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">HARI</th>
                 <th style="border:1px solid #969696;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">TANGGAL</th>
+                <th style="border:1px solid #969696;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">LOKASI KEGIATAN</th>
+                <th style="border:1px solid #969696;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">DESA / KELURAHAN</th>
               </tr>
             </thead>
             <tbody>${tabelJadwal}</tbody>
