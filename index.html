@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
-<head><!-- v20260726k_final -->
+<head><!-- v20260801_presensi_cloud -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sistem Terpadu UPTD Puskesmas Baniona</title>
@@ -11335,6 +11335,14 @@ function getBonusSisaLintas(nama){
 let _activeBulan = null;
 let _activeTahun = null;
 
+function _getPresensiFirestoreDoc(bulan, tahun){
+  if(!window._fbDb) return null;
+  const b=bulan||document.getElementById("sBulan").value;
+  const t=tahun||document.getElementById("sTahun").value;
+  const docId=`${t}_${String(b).padStart(2,"0")}`;
+  return window._fbDb.collection('presensi-baniona').doc(docId);
+}
+
 function savePresensiDB(){
   try{
     const data={
@@ -11352,30 +11360,82 @@ function savePresensiDB(){
     localStorage.setItem(key, JSON.stringify(data));
     localStorage.setItem("presensi_last_key", key);
     _showSaveIndicator();
+    // Sync ke Firestore
+    const fbDoc=_getPresensiFirestoreDoc();
+    if(fbDoc){
+      fbDoc.set({ data: JSON.stringify(data), updatedAt: data.savedAt })
+        .then(()=>console.log('[Firebase] Presensi tersimpan ke Firestore ✅'))
+        .catch(err=>console.warn('[Firebase] Gagal simpan presensi ke Firestore:', err));
+    }
   }catch(e){console.warn("savePresensiDB error:",e);}
 }
 
+function _applyPresensiData(data){
+  // Jam masuk/pulang/istirahat DIKUNCI ke standar tetap 07:45–13:45, istirahat 0 menit
+  document.getElementById("sJamMasuk").value="07:45";
+  document.getElementById("sJamPulang").value="13:45";
+  document.getElementById("sIstirahat").value="0";
+  if(data.rows && data.rows.length) rows=data.rows;
+  if(data.tanggalMerah) tanggalMerah=data.tanggalMerah;
+  if(data.tanggalCuti) tanggalCuti=data.tanggalCuti;
+  if(data.keteranganTH) keteranganTH=data.keteranganTH;
+  if(data.ambilLiburUsed) ambilLiburUsed=data.ambilLiburUsed;
+  if(data.kuotaManual) kuotaManual=data.kuotaManual;
+  if(data.submitted) submitted=data.submitted;
+  published=!!data.published;
+}
+
 function loadPresensiDB(bulan, tahun){
+  const key=getDbKey(bulan, tahun);
+  // 1. Load localStorage dulu (cepat, tampil langsung)
   try{
-    const key=getDbKey(bulan, tahun);
     const raw=localStorage.getItem(key);
-    if(!raw){ published=false; return false; }
+    if(raw){
+      const data=JSON.parse(raw);
+      _applyPresensiData(data);
+    } else {
+      published=false;
+    }
+  }catch(e){console.warn("loadPresensiDB localStorage error:",e);}
+
+  // 2. Coba ambil dari Firestore (sumber sinkron antar perangkat)
+  const fbDoc=_getPresensiFirestoreDoc(bulan, tahun);
+  if(fbDoc){
+    fbDoc.get().then(snap=>{
+      if(!snap.exists) return;
+      try{
+        const fbData=JSON.parse(snap.data().data);
+        const fbSaved=fbData.savedAt||"";
+        const localRaw=localStorage.getItem(key);
+        const localSaved=localRaw?JSON.parse(localRaw).savedAt||"":"";
+        // Pakai Firestore jika lebih baru dari localStorage
+        if(fbSaved > localSaved){
+          console.log('[Firebase] Presensi lebih baru di Firestore — diterapkan ✅');
+          // Reset state sebelum apply
+          rows=[{nama:"",tanggal:"",jamMasuk:"",jamPulang:""}];
+          submitted=false; published=false; keteranganTH={}; ambilLiburUsed={}; kuotaManual={};
+          tanggalMerah={}; tanggalCuti={};
+          _applyPresensiData(fbData);
+          // Update localStorage dengan data terbaru
+          localStorage.setItem(key, JSON.stringify(fbData));
+          // Re-render UI
+          onSettingChange();
+          renderTglMerah(); renderTglCuti(); renderRows();
+          if(submitted){ _summaryMap=buildSummaryMap(); renderSummary(); renderKalender(); }
+          renderKirimStatus();
+          _prNotif("info","☁️ Data diperbarui dari Cloud","Data presensi disinkronkan dari perangkat lain.");
+        }
+      }catch(e){ console.warn('[Firebase] Gagal parse presensi dari Firestore:', e); }
+    }).catch(err=>console.warn('[Firebase] Gagal load presensi dari Firestore:', err));
+  }
+
+  // Return berdasarkan localStorage (sync)
+  try{
+    const raw=localStorage.getItem(key);
+    if(!raw){ return false; }
     const data=JSON.parse(raw);
-    // Jam masuk/pulang/istirahat DIKUNCI ke standar tetap 07:45–13:45, istirahat 0 menit
-    // di semua bulan — tidak lagi mengikuti setting lama yang mungkin tersimpan per bulan.
-    document.getElementById("sJamMasuk").value="07:45";
-    document.getElementById("sJamPulang").value="13:45";
-    document.getElementById("sIstirahat").value="0";
-    if(data.rows && data.rows.length) rows=data.rows;
-    if(data.tanggalMerah) tanggalMerah=data.tanggalMerah;
-    if(data.tanggalCuti) tanggalCuti=data.tanggalCuti;
-    if(data.keteranganTH) keteranganTH=data.keteranganTH;
-    if(data.ambilLiburUsed) ambilLiburUsed=data.ambilLiburUsed;
-    if(data.kuotaManual) kuotaManual=data.kuotaManual;
-    if(data.submitted) submitted=data.submitted;
-    published=!!data.published;
     return data.savedAt||true;
-  }catch(e){console.warn("loadPresensiDB error:",e); return false;}
+  }catch(e){ return false; }
 }
 
 // ── Kirim Kalender & Rekap Presensi ke Pegawai ─────────
@@ -11417,6 +11477,9 @@ function clearDB(){
   if(!confirm("Hapus semua data tersimpan bulan ini? Tindakan ini tidak bisa dibatalkan.")) return;
   const key=getDbKey();
   localStorage.removeItem(key);
+  // Hapus juga dari Firestore
+  const fbDoc=_getPresensiFirestoreDoc();
+  if(fbDoc) fbDoc.delete().then(()=>console.log('[Firebase] Presensi bulan ini dihapus dari Firestore ✅')).catch(()=>{});
   rows=[{nama:"",tanggal:"",jamMasuk:"",jamPulang:""}];
   submitted=false; published=false; _summaryMap={}; keteranganTH={}; ambilLiburUsed={}; kuotaManual={};
   tanggalMerah={}; tanggalCuti={};
@@ -11454,6 +11517,10 @@ function onBulanChange(){
           savedAt: new Date().toISOString()
         };
         localStorage.setItem(oldKey, JSON.stringify(oldData));
+        // Sync bulan lama ke Firestore
+        const fbDocOld=_getPresensiFirestoreDoc(_activeBulan, _activeTahun);
+        if(fbDocOld) fbDocOld.set({ data: JSON.stringify(oldData), updatedAt: oldData.savedAt })
+          .catch(err=>console.warn('[Firebase] Gagal simpan bulan lama ke Firestore:', err));
       }catch(e){console.warn("save old month error:",e);}
 
       // Reset state untuk bulan baru
