@@ -11029,7 +11029,8 @@ function tglSehari(d){
       </div>
       <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap" id="modalKetNavDots"></div>
     </div>
-    <div id="modalKetInfo" style="font-size:13px;color:#6B7A99;margin-bottom:18px"></div>
+    <div id="modalKetInfo" style="font-size:13px;color:#6B7A99;margin-bottom:14px"></div>
+    <div id="modalKetBonusInfo"></div>
     <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;max-height:55vh;overflow-y:auto" id="modalKetOptions"></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button onclick="hapusKetTH()" id="btnHapusKet" style="background:#FFF5F5;color:#DC2626;border:1px solid #FCA5A5;border-radius:10px;padding:9px 16px;font-weight:700;font-size:13px;cursor:pointer;display:none">🗑 Hapus</button>
@@ -11093,7 +11094,7 @@ function _showModalAt(idx){
   _modalNama=nama; _modalDs=ds;
   const current=keteranganTH[ketKey(nama,ds)]||"";
   document.getElementById("modalKetInfo").innerHTML=
-    `<b>${esc(nama)}</b> — ${fmtTgl(ds)}`;
+    `<span style="font-weight:800;color:#1E2A4A">${esc(nama)}</span><br><span style="font-size:11px;color:#6B7A99;font-weight:500">${fmtTgl(ds)}</span>`;
   const btnHapus=document.getElementById("btnHapusKet");
   btnHapus.style.display=current?"inline-block":"none";
 
@@ -11104,16 +11105,18 @@ function _showModalAt(idx){
   document.getElementById("btnNavNext").style.display=hasQueue&&idx<_modalQueue.length-1?"inline-block":"none";
   document.getElementById("btnNavSelesai").textContent=(!hasQueue||idx===_modalQueue.length-1)?"✅ Selesai":"Lewati ▶";
   if(hasQueue){
-    document.getElementById("modalKetNavLabel").textContent=`${idx+1} dari ${_modalQueue.length} tanggal tidak hadir`;
+    const belumDiisi=_modalQueue.filter(q=>!keteranganTH[ketKey(q.nama,q.ds)]).length;
+    const labelBelum=belumDiisi>0?` · <span style="color:#DC2626;font-weight:700">⚠ ${belumDiisi} belum diisi</span>`:"";
+    document.getElementById("modalKetNavLabel").innerHTML=`${idx+1} dari ${_modalQueue.length} tanggal tidak hadir${labelBelum}`;
     document.getElementById("modalKetNavDots").innerHTML=_modalQueue.map((_,i)=>{
       const ds=_modalQueue[i].ds;
       const tgl=parseDate(ds);
       const dayNum=tgl?tgl.getDate():"?";
       const hasKet=!!keteranganTH[ketKey(_modalQueue[i].nama,ds)];
       const isActive=i===idx;
-      const bg=isActive?"#3B5BDB":hasKet?"#10B981":"#EEF2FF";
-      const tc=isActive||hasKet?"white":"#475068";
-      const border=isActive?"#3B5BDB":hasKet?"#10B981":"#C7D2FE";
+      const bg=isActive?"#3B5BDB":hasKet?"#10B981":"#FEE2E2";
+      const tc=isActive||hasKet?"white":"#DC2626";
+      const border=isActive?"#3B5BDB":hasKet?"#10B981":"#FCA5A5";
       return`<div onclick="_showModalAt(${i})" title="${ds}" style="
         width:30px;height:30px;border-radius:6px;cursor:pointer;
         background:${bg};border:2px solid ${border};
@@ -11123,11 +11126,10 @@ function _showModalAt(idx){
     }).join("");
   }
 
-  // Info bonus ambil libur — gunakan bonusSisa dari summaryMap (sumber kebenaran)
+  // Info bonus ambil libur — versi lengkap
   const s=_summaryMap[nama];
   let bonusInfo="";
   if(s){
-    // bonusSisa dari buildSummaryMap sudah memperhitungkan ambilLiburCount + kuota manual
     const sisaTotal = s.bonusSisa;
     const totalKuotaModal = s.totalKuota || s.bonusCutiTotal;
     if(totalKuotaModal > 0){
@@ -11145,14 +11147,26 @@ function _showModalAt(idx){
       </div>`;
     }
   }
+  document.getElementById("modalKetBonusInfo").innerHTML=bonusInfo;
 
-  document.getElementById("modalKetOptions").innerHTML=bonusInfo+KET_TH_LIST.map(k=>{
-    const active=current===k.val;
+  // Cek apakah keterangan saat ini adalah "lainnya:..." atau "lainnya-hadir:..." custom
+  const isLainnyaHadir = current && current.startsWith("lainnya-hadir:");
+  const isLainnyaIjin  = current && current.startsWith("lainnya-ijin:");
+  const isLainnyaTH    = current && current.startsWith("lainnya:") && !current.startsWith("lainnya-hadir:") && !current.startsWith("lainnya-ijin:");
+  const currentLainnyaTeks = isLainnyaHadir ? current.slice(14) : isLainnyaIjin ? current.slice(13) : isLainnyaTH ? current.slice(8) : "";
+  const currentLainnyaStatus = isLainnyaHadir ? "hadir" : isLainnyaIjin ? "ijin" : "th";
+  const currentBase = (isLainnyaHadir||isLainnyaIjin||isLainnyaTH) ? "lainnya" : current;
+  // Set status toggle lainnya sesuai data tersimpan
+  _lainnyaStatus = currentLainnyaStatus;
+
+  document.getElementById("modalKetOptions").innerHTML=KET_TH_LIST.map(k=>{
+    const active=currentBase===k.val;
     const isAmbildibur=k.val==="ambildibur";
-    // Gunakan bonusSisa dari summaryMap — sudah benar karena buildSummaryMap dipanggil ulang setiap setKetTH
     const sisaCheck = s ? s.bonusSisa : 0;
     const disabled=isAmbildibur&&sisaCheck===0&&!active;
-    return`<button onclick="${disabled?"":"setKetTH('"+k.val+"')"}" style="
+    const isLainnya=k.val==="lainnya";
+    const lainnyaOnclick = disabled ? "" : isLainnya ? (active ? "document.getElementById('lainnyaInputBox').style.display='block'" : "toggleLainnyaInput()") : "setKetTH('"+k.val+"')";
+    return`<button onclick="${lainnyaOnclick}" style="
       display:flex;align-items:center;gap:10px;padding:13px 14px;border-radius:12px;cursor:${disabled?"not-allowed":"pointer"};
       border:2px solid ${active?k.color:k.border};
       background:${active?k.bg:disabled?"#F5F5F5":"white"};
@@ -11162,25 +11176,153 @@ function _showModalAt(idx){
       <span style="font-size:20px">${k.icon}</span>
       <span>${k.label}${disabled?" (kuota habis)":""}</span>
       ${active?'<span style="margin-left:auto;font-size:16px">✓</span>':""}
-    </button>`;
+    </button>
+    ${isLainnya?`<div id="lainnyaInputBox" style="display:${active?"block":"none"};margin-top:6px;padding:12px;background:#F8FAFC;border:1px solid #CBD5E1;border-radius:10px">
+      <div id="lainnyaInputBoxInner"></div>
+    </div>`:""}`;
   }).join("");
+
+  // Render isi lainnyaInputBox secara terpisah agar tidak ada konflik kutipan
+  _renderLainnyaBox(currentLainnyaTeks, currentLainnyaStatus);
 
   const modal=document.getElementById("modalKet");
   modal.style.display="flex";
 }
 
-function setKetTH(val){
-  keteranganTH[ketKey(_modalNama,_modalDs)]=val;
-  savePresensiDB(); // simpan ke database presensi
-  _summaryMap=buildSummaryMap(); // rebuild agar sisa bonus ter-update
-  // Jika masih ada antrian berikutnya, lanjut otomatis
-  if(_modalQueue.length>1 && _modalQueueIdx<_modalQueue.length-1){
-    _showModalAt(_modalQueueIdx+1);
-  } else {
-    // Sudah tanggal terakhir — refresh tampilan saja, jangan tutup
-    // agar user tetap bisa kembali dan mengedit tanggal sebelumnya
-    _showModalAt(_modalQueueIdx);
+function _renderLainnyaBox(teks, status){
+  const box = document.getElementById("lainnyaInputBoxInner");
+  if(!box) return;
+  box.innerHTML = "";
+
+  const label = document.createElement("div");
+  label.style.cssText = "font-size:12px;color:#475068;margin-bottom:6px;font-weight:600";
+  label.textContent = "📝 Tulis keterangan:";
+  box.appendChild(label);
+
+  const inp = document.createElement("input");
+  inp.id = "lainnyaTeksInput";
+  inp.type = "text";
+  inp.placeholder = "contoh: Rapat Desa, Kegiatan PKK, dll.";
+  inp.value = teks;
+  inp.style.cssText = "width:100%;padding:8px 10px;border:1.5px solid #CBD5E1;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box";
+  inp.addEventListener("keydown", function(e){ if(e.key==="Enter"){saveLainnyaTeks();e.preventDefault();} });
+  box.appendChild(inp);
+
+  const statusLabel = document.createElement("div");
+  statusLabel.style.cssText = "font-size:12px;color:#475068;margin-top:10px;margin-bottom:6px;font-weight:600";
+  statusLabel.textContent = "📊 Status kehadiran:";
+  box.appendChild(statusLabel);
+
+  const btnRow = document.createElement("div");
+  btnRow.style.cssText = "display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap";
+
+  function makeStatusBtn(id, st, emoji, labelTxt, activeColor, activeBg){
+    const btn = document.createElement("button");
+    btn.id = id;
+    const isActive = status === st;
+    btn.style.cssText = "flex:1;min-width:80px;padding:8px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;" +
+      "border:2px solid " + (isActive ? activeColor : "#E2E8F0") + ";" +
+      "background:" + (isActive ? activeBg : "white") + ";" +
+      "color:" + (isActive ? activeColor : "#6B7280");
+    btn.textContent = emoji + " " + labelTxt;
+    btn.addEventListener("click", function(){ setLainnyaStatus(st); });
+    return btn;
   }
+
+  btnRow.appendChild(makeStatusBtn("lainnyaStatusTH",    "th",    "🔴", "Tidak Hadir",   "#DC2626", "#FFF5F5"));
+  btnRow.appendChild(makeStatusBtn("lainnyaStatusIjin",  "ijin",  "📋", "Dihitung Ijin", "#7C3AED", "#F5F3FF"));
+  btnRow.appendChild(makeStatusBtn("lainnyaStatusHadir", "hadir", "🟢", "Dihitung Hadir","#059669", "#ECFDF5"));
+  box.appendChild(btnRow);
+
+  const actionRow = document.createElement("div");
+  actionRow.style.cssText = "display:flex;gap:8px";
+
+  const btnSimpan = document.createElement("button");
+  btnSimpan.style.cssText = "flex:1;padding:8px;background:#475068;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer";
+  btnSimpan.textContent = "✓ Simpan";
+  btnSimpan.addEventListener("click", saveLainnyaTeks);
+
+  const btnBatal = document.createElement("button");
+  btnBatal.style.cssText = "padding:8px 12px;background:#EEF2FF;color:#475068;border:none;border-radius:8px;font-size:13px;cursor:pointer";
+  btnBatal.textContent = "Batal";
+  btnBatal.addEventListener("click", function(){
+    const outer = document.getElementById("lainnyaInputBox");
+    if(outer) outer.style.display = "none";
+  });
+
+  actionRow.appendChild(btnSimpan);
+  actionRow.appendChild(btnBatal);
+  box.appendChild(actionRow);
+}
+
+function setKetTH(val){
+  const key=ketKey(_modalNama,_modalDs);
+  const existing=keteranganTH[key];
+  // Jika sudah ada keterangan berbeda, minta konfirmasi
+  if(existing && existing!==val){
+    const existInfo=getKetInfo(existing);
+    const newInfo=getKetInfo(val);
+    const existLabel=existInfo?existInfo.icon+" "+existInfo.label:existing;
+    const newLabel=newInfo?newInfo.icon+" "+newInfo.label:val;
+    if(!confirm(`Keterangan sudah diisi: ${existLabel}\n\nYakin ubah menjadi: ${newLabel}?`)) return;
+  }
+  keteranganTH[key]=val;
+  savePresensiDB();
+  _summaryMap=buildSummaryMap();
+  showToast('Keterangan tersimpan ✓','success');
+  // Tetap di tanggal yang sama — tidak loncat ke tanggal berikutnya
+  _showModalAt(_modalQueueIdx);
+}
+
+// Status toggle lainnya: 'th' = tidak hadir, 'hadir' = dihitung hadir
+let _lainnyaStatus = 'th';
+function toggleLainnyaInput(){
+  const box=document.getElementById("lainnyaInputBox");
+  if(!box) return;
+  const show=box.style.display==="none";
+  box.style.display=show?"block":"none";
+  if(show){
+    // Render isi box jika belum ada (buka pertama kali)
+    const inner=document.getElementById("lainnyaInputBoxInner");
+    if(inner&&inner.children.length===0) _renderLainnyaBox("", _lainnyaStatus);
+    setTimeout(()=>{const inp=document.getElementById("lainnyaTeksInput");if(inp)inp.focus();},50);
+  }
+}
+function setLainnyaStatus(status){
+  _lainnyaStatus=status;
+  const btnTH=document.getElementById("lainnyaStatusTH");
+  const btnIjin=document.getElementById("lainnyaStatusIjin");
+  const btnH=document.getElementById("lainnyaStatusHadir");
+  if(btnTH){
+    btnTH.style.border=status==='th'?'2px solid #DC2626':'2px solid #E2E8F0';
+    btnTH.style.background=status==='th'?'#FFF5F5':'white';
+    btnTH.style.color=status==='th'?'#DC2626':'#6B7280';
+  }
+  if(btnIjin){
+    btnIjin.style.border=status==='ijin'?'2px solid #7C3AED':'2px solid #E2E8F0';
+    btnIjin.style.background=status==='ijin'?'#F5F3FF':'white';
+    btnIjin.style.color=status==='ijin'?'#7C3AED':'#6B7280';
+  }
+  if(btnH){
+    btnH.style.border=status==='hadir'?'2px solid #059669':'2px solid #E2E8F0';
+    btnH.style.background=status==='hadir'?'#ECFDF5':'white';
+    btnH.style.color=status==='hadir'?'#059669':'#6B7280';
+  }
+}
+function saveLainnyaTeks(){
+  const inp=document.getElementById("lainnyaTeksInput");
+  if(!inp) return;
+  const teks=inp.value.trim();
+  if(!teks){alert("Tulis keterangan terlebih dahulu.");inp.focus();return;}
+  // lainnya-hadir:teks = dihitung hadir, lainnya-ijin:teks = dihitung ijin, lainnya:teks = tidak hadir (alpa)
+  const prefix=_lainnyaStatus==='hadir'?"lainnya-hadir:":_lainnyaStatus==='ijin'?"lainnya-ijin:":"lainnya:";
+  const val=prefix+teks;
+  const key=ketKey(_modalNama,_modalDs);
+  keteranganTH[key]=val;
+  savePresensiDB();
+  _summaryMap=buildSummaryMap();
+  showToast('Keterangan tersimpan ✓','success');
+  _showModalAt(_modalQueueIdx);
 }
 
 function modalNavNext(){
@@ -11578,12 +11720,19 @@ const KET_TH_LIST = [
   {val:"ijin",       label:"Ijin",                         icon:"📋", color:"#7C3AED", bg:"#F5F3FF", border:"#C4B5FD"},
   {val:"cuti",       label:"Ambil Cuti",                   icon:"🧳", color:"#0369A1", bg:"#E0F2FE", border:"#7DD3FC"},
   {val:"ambildibur", label:"Ambil Libur",                  icon:"🌴", color:"#166534", bg:"#dcfce7", border:"#86efac"},
-  {val:"kompensasipiket", label:"Kompensasi Piket Malam",       icon:"🌙", color:"#1e40af", bg:"#eff6ff", border:"#93c5fd"},
+  {val:"kompensasipiket", label:"Kompensasi Piket Malam",  icon:"🌙", color:"#1e40af", bg:"#eff6ff", border:"#93c5fd"},
   {val:"dinas",      label:"Perj. Dinas/UKM",             icon:"✈️", color:"#14532d", bg:"#bbf7d0", border:"#22c55e"},
+  {val:"hadir",      label:"Hadir (tidak tap mesin)",      icon:"✅", color:"#059669", bg:"#ECFDF5", border:"#6EE7B7"},
+  {val:"lainnya",    label:"Lainnya (isi manual)",          icon:"📝", color:"#475068", bg:"#F8FAFC", border:"#CBD5E1"},
 ];
 // ukm = alias lama untuk Perj. Dinas/UKM, tidak ditampilkan di dropdown tapi tetap dikenali
 function getKetInfo(val){
+  if(!val) return null;
   if(val==="ukm") val="dinas"; // normalisasi alias
+  // lainnya-hadir:teks = dihitung hadir | lainnya:teks = tidak hadir
+  if(val.startsWith("lainnya-hadir:")) return {...KET_TH_LIST.find(k=>k.val==="lainnya"), label:"📝✅ "+val.slice(14), color:"#059669", bg:"#ECFDF5", border:"#6EE7B7"};
+  if(val.startsWith("lainnya-ijin:"))  return {...KET_TH_LIST.find(k=>k.val==="lainnya"), label:"📝📋 "+val.slice(13), color:"#7C3AED", bg:"#F5F3FF", border:"#C4B5FD"};
+  if(val.startsWith("lainnya:")) return {...KET_TH_LIST.find(k=>k.val==="lainnya"), label:"📝 "+val.slice(8)};
   return KET_TH_LIST.find(k=>k.val===val)||null;
 }
 function ketKey(nama,ds){return nama+"||"+ds;}
@@ -11715,7 +11864,7 @@ function detectCol(headers,cands){
   for(const c of cands){const f=norm.find(h=>h.norm.includes(normalizeKey(c)));if(f)return f.orig;}
   return null;
 }
-function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");}
 
 // ═══════════════════════════════════════════════════════
 // SETTINGS
@@ -11939,10 +12088,18 @@ function buildSummaryMap(){
       if(kompensasiPiketDates.includes(ds)) return false; // kompensasi piket malam → HADIR
       const ket = keteranganTH[ketKey(nama,ds)];
       if(ket === 'dinas' || ket === 'ukm') return false; // hadir
-      return true; // alpa/sakit/ijin/cuti → TIDAK HADIR
+      if(ket === 'hadir') return false; // hadir manual (tidak tap mesin) → HADIR
+      if(ket && ket.startsWith('lainnya-hadir:')) return false; // lainnya tapi dihitung hadir
+      return true; // alpa/sakit/ijin/cuti/lainnya → TIDAK HADIR (tapi ada keterangan)
     });
     // Dinas/UKM (sinkron ST, tidak hadir fisik) tetap dihitung HADIR
     hariDinasSinkron.forEach(ds => hariHadirValid.add(ds));
+    // Hadir manual (tidak tap mesin) → tambah ke hariHadirValid
+    hariTidakHadirRaw.forEach(ds => {
+      const ket = keteranganTH[ketKey(nama,ds)];
+      if(ket === 'hadir' || (ket && ket.startsWith('lainnya-hadir:'))) hariHadirValid.add(ds);
+      // lainnya-ijin: tetap tidak hadir (tidak masuk hariHadirValid)
+    });
 
     const ambilLiburCount = ambilLiburValid.length;   // jumlah yang benar-benar dipakai
     // Sisa kuota = totalKuota dikurangi pemakaian ambil libur
@@ -12128,8 +12285,14 @@ function openModalKetAll(nama){
   if(!s) return;
   // Gabungkan hariTidakHadir + ambilLiburDates + kompensasiPiketDates + hariDinasSinkron
   // agar semua tanggal yang sudah diberi keterangan tetap bisa diedit kembali
+  // Hari hadir manual (keterangan 'hadir' atau 'lainnya-hadir:' atau 'lainnya-ijin:') juga bisa diedit
+  const hariHadirManual=(s.hariHadirList||[]).filter(ds=>{
+    const k=keteranganTH[ketKey(nama,ds)];
+    return k==='hadir'||( k&&(k.startsWith('lainnya-hadir:')||k.startsWith('lainnya-ijin:')||k.startsWith('lainnya:')));
+  });
   const allEditable = [...new Set([
     ...(s.hariTidakHadir||[]),
+    ...hariHadirManual,
     ...(s.ambilLiburDates||[]),
     ...(s.kompensasiPiketDates||[]),
     ...(s.hariDinasSinkron||[])
@@ -12185,6 +12348,12 @@ function renderSummary(){
           const _hket=keteranganTH[ketKey(nama,ds)];
           const _hki=_hket?getKetInfo(_hket):null;
           const dinasTag=_hki?`<span style="font-size:10px;font-weight:700;color:${_hki.color};background:${_hki.bg};border:1px solid ${_hki.border};border-radius:6px;padding:1px 5px;margin-left:3px">${_hki.icon} ${_hki.label}</span>`:"";
+          // Hari hadir manual bisa diklik untuk diedit
+          const isManual=_hket&&(_hket==='hadir'||_hket.startsWith('lainnya-hadir:')||_hket.startsWith('lainnya-ijin:')||_hket.startsWith('lainnya:'));
+          if(isManual){
+            const qAll=JSON.stringify([{nama,ds}]).replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+            return`<button onclick="openModalKet('${esc(nama)}','${ds}',${qAll})" style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;background:${_hki?_hki.bg:'#F0FDF4'};border:1px solid ${_hki?_hki.border:'#BBF7D0'};border-radius:7px;padding:3px 7px;cursor:pointer;font-size:11px;color:#475068;font-weight:500;text-align:left">${esc(fmtTglShort(ds))}${dinasTag}<span style="font-size:9px;color:#94A3B8;margin-left:2px">✎</span></button>`;
+          }
           return`<div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">${esc(fmtTglShort(ds))}${dinasTag}</div>`;
         }).join("")
       : "-";
@@ -12198,22 +12367,26 @@ function renderSummary(){
       : "–";
 
     // Keterangan ringkasan
-    const ketCounts={alpa:0,sakit:0,ijin:0,cuti:0,ambildibur:0,kompensasipiket:0,dinasUkm:0};
+    const ketCounts={alpa:0,sakit:0,ijin:0,cuti:0,ambildibur:0,kompensasipiket:0,dinasUkm:0,lainnya:0};
     s.hariTidakHadir.forEach(ds=>{
       const k=keteranganTH[ketKey(nama,ds)];
-      if(k==="alpa")ketCounts.alpa++;
+      if(k==="alpa"||!k||k==="")ketCounts.alpa++;
       else if(k==="sakit")ketCounts.sakit++;
       else if(k==="ijin")ketCounts.ijin++;
       else if(k==="cuti")ketCounts.cuti++; // Ambil Cuti = tidak hadir
+      else if(k&&k.startsWith("lainnya-ijin:"))ketCounts.ijin++;
+      else if(k&&(k.startsWith("lainnya:")||k.startsWith("lainnya-hadir:")))ketCounts.lainnya++;
     });
-    // Dinas/UKM dan Ambil Libur dari hariHadirList (dihitung hadir)
+    // Dinas/UKM, Ambil Libur, dan Hadir manual dari hariHadirList (dihitung hadir)
+    if(!ketCounts.hadir) ketCounts.hadir=0;
     s.hariHadirList.forEach(ds=>{
       const k=keteranganTH[ketKey(nama,ds)];
       if(k==="dinas"||k==="ukm")ketCounts.dinasUkm++;
       else if(k==="ambildibur")ketCounts.ambildibur++;
       else if(k==="kompensasipiket")ketCounts.kompensasipiket++;
+      else if(k==="hadir")ketCounts.hadir++;
     });
-    const tanpaKet=s.hariTidakHadir.filter(ds=>{const k=keteranganTH[ketKey(nama,ds)];return !k||k==="";}).length;
+    const tanpaKet=s.hariTidakHadir.filter(ds=>{const k=keteranganTH[ketKey(nama,ds)];return !k||k===""||(k==="alpa");}).length;
     const dinasUkmCount=ketCounts.dinasUkm;
     totDinasUkm+=dinasUkmCount;
     totCuti+=ketCounts.cuti;
@@ -12250,14 +12423,14 @@ function renderSummary(){
         ${s.hariTidakHadir.map(ds=>{
           const ket=keteranganTH[ketKey(nama,ds)];
           const ki=ket?getKetInfo(ket):null;
-          const queueStr=JSON.stringify(s.hariTidakHadir.map(d=>({nama,ds:d}))).replace(/"/g,"&quot;");
+          const queueStr=JSON.stringify(s.hariTidakHadir.map(d=>({nama,ds:d}))).replace(/"/g,"&quot;").replace(/'/g,"&#39;");
           return`<button onclick="openModalKet('${esc(nama)}','${ds}',${queueStr})" style="
             display:flex;align-items:center;justify-content:space-between;gap:6px;
             background:${ki?ki.bg:"#F8FAFF"};border:1px solid ${ki?ki.border:"#E2E8F0"};
             border-radius:8px;padding:5px 8px;cursor:pointer;width:100%;text-align:left">
             <span style="font-size:11px;color:#475068;font-weight:500">${esc(fmtTglShort(ds))}</span>
             ${ki
-              ?`<span style="font-size:10px;font-weight:700;color:${ki.color};white-space:nowrap">${ki.icon} ${ki.label}</span>`
+              ?`<span style="font-size:10px;font-weight:700;color:${ki.color};white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">${ki.icon} ${ki.label}</span>`
               :`<span style="font-size:10px;font-weight:600;color:#8896BB;white-space:nowrap">＋ Isi</span>`}
           </button>`;
         }).join("")}
@@ -12303,7 +12476,7 @@ function renderSummary(){
         ${(()=>{
           const dinasHadir=s.hariHadirList.filter(ds=>{const k=keteranganTH[ketKey(nama,ds)];return k==="dinas"||k==="ukm";});
           if(!dinasHadir.length)return "";
-          const dinasQueueStr=JSON.stringify(dinasHadir.map(d=>({nama,ds:d}))).replace(/"/g,"&quot;");
+          const dinasQueueStr=JSON.stringify(dinasHadir.map(d=>({nama,ds:d}))).replace(/"/g,"&quot;").replace(/'/g,"&#39;");
           const dinasHtml=dinasHadir.map(ds=>{const k=keteranganTH[ketKey(nama,ds)];const ki=getKetInfo(k);return`<button onclick="openModalKet('${esc(nama)}','${ds}',${dinasQueueStr})" style="display:flex;align-items:center;justify-content:space-between;gap:6px;background:${ki.bg};border:1px solid ${ki.border};border-radius:8px;padding:5px 8px;cursor:pointer;width:100%;text-align:left"><span style="font-size:11px;color:#475068;font-weight:500">${esc(fmtTglShort(ds))}</span><span style="font-size:10px;font-weight:700;color:${ki.color};white-space:nowrap">${ki.icon} ${ki.label}</span></button>`;}).join("");
           return`<div style="margin-top:12px;padding-top:12px;border-top:1px solid #EEF2FF"><div style="font-weight:700;color:#14532d;margin-bottom:6px;font-size:11px">✈️ Perjalanan Dinas (hadir presensi) — ${dinasHadir.length} hari</div><div style="display:flex;flex-direction:column;gap:3px">${dinasHtml}</div></div>`;
         })()}
@@ -12429,6 +12602,10 @@ function renderKalender(){
       else if(tidakHadir && _ketKal==="cuti"){bg="#E0F2FE";border="#7DD3FC";tc="#0369A1";ico="🧳";lbl2="Ambil Cuti";}
       else if(tidakHadir && _ketKal==="sakit"){bg="#FFFBEB";border="#FCD34D";tc="#D97706";ico="🏥";lbl2="Sakit";}
       else if(tidakHadir && _ketKal==="ijin"){bg="#F5F3FF";border="#C4B5FD";tc="#7C3AED";ico="📋";lbl2="Ijin";}
+      else if(tidakHadir && _ketKal&&_ketKal.startsWith("lainnya-ijin:")){bg="#F5F3FF";border="#C4B5FD";tc="#7C3AED";ico="📋";lbl2=_ketKal.slice(13)||"Ijin";}
+      else if(tidakHadir && _ketKal&&_ketKal.startsWith("lainnya:")){bg="#F8FAFC";border="#CBD5E1";tc="#475068";ico="📝";lbl2=_ketKal.slice(8)||"Lainnya";}
+      else if(_ketKal&&_ketKal.startsWith("lainnya-hadir:")){bg="#ECFDF5";border="#6EE7B7";tc="#059669";ico="📝✅";lbl2=_ketKal.slice(14)||"Lainnya (Hadir)";}
+      else if(_ketKal==="hadir"){bg="#F0FDF4";border="#BBF7D0";tc="#16A34A";ico="✓";lbl2="Hadir";}
       else if(tidakHadir){bg="#FFF5F5";border="#FCA5A5";tc="#DC2626";ico="✗";lbl2=_ketKal?"Tanpa Keterangan":"";}
       else if(hadir){bg="#F0FDF4";border="#BBF7D0";tc="#16A34A";ico="✓";}
       const dayNum=parseDate(ds)?.getDate()||"";
@@ -14822,10 +14999,15 @@ async function exportExcel(){
       if(seenHadir.has(bx.tanggal))return false;
       seenHadir.add(bx.tanggal);return true;
     });
+    // Tambah baris hadir manual (keterangan "hadir" atau "lainnya-hadir:") yang tidak punya jam presensi
+    const barisHadirManual=(s.hariHadirList||[])
+      .filter(ds=>!seenHadir.has(ds))
+      .map(ds=>({type:"hadir",nama,tanggal:ds,jm:"",jp:"",res:null}));
+    barisHadirManual.forEach(bx=>seenHadir.add(bx.tanggal));
     const barisTH=s.hariTidakHadir
       .filter(ds=>!seenHadir.has(ds))
       .map(ds=>({type:"tidakhadir",nama,tanggal:ds,jm:"",jp:"",res:null}));
-    const gabung=[...barisHadirDedup,...barisTH].sort((a,z)=>(a.tanggal||"")>(z.tanggal||"")?1:(a.tanggal||"")<(z.tanggal||"")?-1:0);
+    const gabung=[...barisHadirDedup,...barisHadirManual,...barisTH].sort((a,z)=>(a.tanggal||"")>(z.tanggal||"")?1:(a.tanggal||"")<(z.tanggal||"")?-1:0);
     allRows.push(...gabung);
   });
 
@@ -14838,7 +15020,13 @@ async function exportExcel(){
     if(type==="tidakhadir"){
       const ket=keteranganTH[ketKey(nama,tanggal)]||"";
       const ki=ket?getKetInfo(ket):null;
-      const ketLabel=ki?(ki.val==="alpa"?"Tidak Hadir (Tanpa Keterangan)":`Tidak Hadir (${ki.label})`):"Tidak Hadir";
+      let ketLabel="Tidak Hadir";
+      if(ki){
+        if(ki.val==="alpa")ketLabel="Tidak Hadir (Tanpa Keterangan)";
+        else if(ket&&ket.startsWith("lainnya-ijin:"))ketLabel="Tidak Hadir (Ijin) - "+ket.slice(13);
+        else if(ket&&ket.startsWith("lainnya:"))ketLabel="Tidak Hadir - Lainnya: "+ket.slice(8);
+        else ketLabel=`Tidak Hadir (${ki.label.replace(/^[\uD800-\uDFFF\u2000-\u3300\u{1F000}-\u{1FFFF}]+\s*/u,"")})`;
+      }
       return{no:idx+1,nama,tanggal:tanggal||"",hari:hariStr,keterangan:ketLabel,
         jmJadwal:jmVal,jmAktual:"",statusMasuk:"Tidak Hadir",terlambat:"",
         jpJadwal:jpVal,jpAktual:"",statusPulang:"",pulangCepat:"",
@@ -14853,8 +15041,8 @@ async function exportExcel(){
     const sJK=(res&&!res.skip)?res.statusJamKerja:"";
     const statusMasukLbl=isMerah?"Hari Merah":isCuti&&!jm?"Cuti Bersama":jm?(sM==="terlambat"?"Terlambat":"Tepat Waktu"):"";
     const _ketHadir=(!isMerah&&!isCuti)?keteranganTH[ketKey(nama,tanggal)]||"":"";
-    const _ketHadirLabelMap={ambildibur:"HADIR (Ambil Libur)",kompensasipiket:"HADIR (Komp. Piket Malam)",ukm:"HADIR (Perj. Dinas/UKM)",dinas:"HADIR (Perj. Dinas/UKM)"};
-    const _ketHadirLabel=_ketHadirLabelMap[_ketHadir]||"HADIR";
+    const _ketHadirLabelMap={ambildibur:"HADIR (Ambil Libur)",kompensasipiket:"HADIR (Komp. Piket Malam)",ukm:"HADIR (Perj. Dinas/UKM)",dinas:"HADIR (Perj. Dinas/UKM)",hadir:"HADIR"};
+    const _ketHadirLabel=_ketHadir&&_ketHadir.startsWith("lainnya-hadir:")?"HADIR - "+_ketHadir.slice(14):(_ketHadirLabelMap[_ketHadir]||"HADIR");
     return{no:idx+1,nama,tanggal:tanggal||"",hari:hariStr,
       keterangan:isMerah?`Hari Merah: ${tanggalMerah[tanggal]||""}`:isCuti?`Cuti Bersama: ${tanggalCuti[tanggal]||""}`:_ketHadirLabel,
       jmJadwal:jmVal,jmAktual:jm||"",statusMasuk:statusMasukLbl,
@@ -14927,28 +15115,32 @@ async function exportExcel(){
         if(r.jamPulang&&res.pulangCepat>0)pulangCepatHari++;
       });
       // Rekap keterangan (Alpa/Sakit/Ijin/Ambil Cuti/Ambil Libur/Perj. Dinas/UKM)
-      const ketCounts={alpa:0,sakit:0,ijin:0,cuti:0,ambildibur:0,kompensasipiket:0,dinasUkm:0};
+      const ketCounts={alpa:0,sakit:0,ijin:0,cuti:0,ambildibur:0,kompensasipiket:0,dinasUkm:0,lainnya:0,hadirManual:0};
       s.hariTidakHadir.forEach(ds=>{
         const k=keteranganTH[ketKey(nama,ds)];
         if(k==="alpa")ketCounts.alpa++;
         else if(k==="sakit")ketCounts.sakit++;
         else if(k==="ijin")ketCounts.ijin++;
         else if(k==="cuti")ketCounts.cuti++; // Ambil Cuti = tidak hadir
+        else if(k&&k.startsWith("lainnya-ijin:"))ketCounts.ijin++;
+        else if(k&&k.startsWith("lainnya:"))ketCounts.ijin++; // lainnya TH → masuk Ijin
       });
       s.hariHadirList.forEach(ds=>{
         const k=keteranganTH[ketKey(nama,ds)];
         if(k==="dinas"||k==="ukm")ketCounts.dinasUkm++;
         else if(k==="ambildibur")ketCounts.ambildibur++;
-      else if(k==="kompensasipiket")ketCounts.kompensasipiket++;
+        else if(k==="kompensasipiket")ketCounts.kompensasipiket++;
+        else if(k==="hadir"||k&&k.startsWith("lainnya-hadir:"))ketCounts.hadirManual++; // tetap dihitung, nanti digabung ke hadir
       });
-      const tanpaKetCount=s.hariTidakHadir.filter(ds=>!keteranganTH[ketKey(nama,ds)]).length;
+      const tanpaKetCount=s.hariTidakHadir.filter(ds=>{const k=keteranganTH[ketKey(nama,ds)];return !k||k==="alpa";}).length;
       let totalJamMnt=0;
       rows.filter(r=>r.nama.trim()===nama).forEach(r=>{
         const res=computeRow(r);
         if(res&&!res.skip&&res.jamKerjaAktual>0)totalJamMnt+=res.jamKerjaAktual;
       });
       const hJ=Math.floor(totalJamMnt/60),mJ=totalJamMnt%60;
-      const persenHadir=hk.length>0?(s.hariHadir/hk.length*100):0;
+      const hadirTotalTemp=(s.hariHadir||0)+ketCounts.hadirManual;
+      const persenHadir=hk.length>0?(hadirTotalTemp/hk.length*100):0;
       rekapRows.push({
         no:idx+1,nama,hariKerja:hk.length,hadir:s.hariHadir,tidakHadir:s.hariTidakHadir.length,
         terlambatHari,tepatWaktu:tepatHari,pulangCepat:pulangCepatHari,
@@ -14958,6 +15150,7 @@ async function exportExcel(){
         alpa:ketCounts.alpa,sakit:ketCounts.sakit,ijin:ketCounts.ijin,
         ambilCuti:ketCounts.cuti,ambilLibur:ketCounts.ambildibur,dinasUkm:ketCounts.dinasUkm,
         tanpaKet:tanpaKetCount,
+        hadirTotal:hadirTotalTemp,
         jamKerjaAktual:`${hJ}:${String(mJ).padStart(2,"0")}`,persenHadir
       });
     });
@@ -14986,7 +15179,7 @@ async function exportExcel(){
 
     rekapRows.forEach((r,i)=>{
       const row=ws2.getRow(5+i);
-      const vals=[r.no,r.nama,r.hariKerja,r.hadir,r.tidakHadir,
+      const vals=[r.no,r.nama,r.hariKerja,r.hadirTotal,r.tidakHadir,
         r.alpa,r.sakit,r.ijin,r.ambilLibur,r.ambilCuti,r.dinasUkm,r.tanpaKet,
         r.terlambatHari,r.tepatWaktu,r.pulangCepat,
         r.totalTerlambatStr,r.totalPulangCepatStr,
@@ -15192,6 +15385,10 @@ function exportPDFperPegawai(){
           statusLabel="🌴 Ambil Libur"; statusClass="status-hadir";
         } else if(ket==='kompensasipiket'){
           statusLabel="🌙 Komp. Piket Malam"; statusClass="status-hadir";
+        } else if(ket&&ket.startsWith('lainnya-hadir:')){
+          statusLabel="📝✅ "+ket.slice(14); statusClass="status-hadir";
+        } else if(ket==='hadir'){
+          statusLabel="✓ Hadir"; statusClass="status-hadir";
         } else {
           statusLabel="✓ Hadir"; statusClass="status-hadir";
         }
@@ -15211,8 +15408,14 @@ function exportPDFperPegawai(){
       } else if(isTH){
         const labelMap={alpa:"❌ Tanpa Keterangan",sakit:"🏥 Sakit",ijin:"📝 Izin",cuti:"🧳 Ambil Cuti",ambildibur:"🌴 Ambil Libur",kompensasipiket:"🌙 Komp. Piket Malam",ukm:"✈️ Perj. Dinas/UKM",dinas:"✈️ Perj. Dinas/UKM"};
         const classMap={alpa:"status-alpha",sakit:"status-sakit",ijin:"status-izin",cuti:"status-alpha",ambildibur:"status-hadir",kompensasipiket:"status-hadir",ukm:"status-hadir",dinas:"status-hadir"};
-        statusLabel=ket?(labelMap[ket]||"🚫 Tdk Hadir"):"🚫 Tdk Hadir";
-        statusClass=ket?(classMap[ket]||"status-alpha"):"status-alpha";
+        if(ket&&ket.startsWith("lainnya-ijin:")){
+          statusLabel="📋 Ijin - "+ket.slice(13); statusClass="status-izin";
+        } else if(ket&&ket.startsWith("lainnya:")){
+          statusLabel="📝 "+ket.slice(8); statusClass="status-alpha";
+        } else {
+          statusLabel=ket?(labelMap[ket]||"🚫 Tdk Hadir"):"🚫 Tdk Hadir";
+          statusClass=ket?(classMap[ket]||"status-alpha"):"status-alpha";
+        }
       } else {
         statusLabel="🚫 Tdk Hadir"; statusClass="status-alpha";
       }
@@ -15221,11 +15424,15 @@ function exportPDFperPegawai(){
         alpa:"Tidak Hadir (Tanpa Keterangan)",sakit:"Tidak Hadir (Sakit)",
         ijin:"Tidak Hadir (Ijin)",cuti:"Tidak Hadir (Ambil Cuti)",
         ambildibur:"Hadir (Ambil Libur)",kompensasipiket:"Hadir (Komp. Piket Malam)",ukm:"Hadir (Perj. Dinas/UKM)",
-        dinas:"Hadir (Perj. Dinas/UKM)"
+        dinas:"Hadir (Perj. Dinas/UKM)",hadir:"Hadir"
       };
       let ketDetail="";
       if(isCuti&&!pRow) ketDetail="Libur (Cuti Bersama)";
-      else if(isTH) ketDetail=ket?(detailLabelMap[ket]||"Tidak Hadir"):"Tidak Hadir";
+      else if(isTH){
+        if(ket&&ket.startsWith("lainnya-ijin:")) ketDetail="Ijin - "+ket.slice(13);
+        else if(ket&&ket.startsWith("lainnya:")) ketDetail="Tidak Hadir - "+ket.slice(8);
+        else ketDetail=ket?(detailLabelMap[ket]||"Tidak Hadir"):"Tidak Hadir";
+      }
       else if(isHadir&&ket) ketDetail=detailLabelMap[ket]||"";
       result.push({tglNum,hariStr,jmStr,jpStr,jkStr,tlmStr,pcStr,tlmMins,pcMins,statusLabel,statusClass,isTH,isHadir,isCuti,ketDetail});
     });
@@ -15563,11 +15770,56 @@ function exportPDFperPegawai(){
   .sign-box .sign-line{border-bottom:1.5px solid #1a2332;margin:40px 10px 4px;}
   .sign-box .sign-name{font-size:9px;font-weight:700;color:#1a2332;}
   .sign-box .sign-nip{font-size:8px;color:#6b8fa8;}
+  @page{size:A4 portrait;margin:5mm 5mm 5mm 5mm;}
   @media print{
-    body{background:white;}
-    .page{margin:0;box-shadow:none;border:none;border-radius:0;page-break-after:always;}
+    html,body{background:white;margin:0;padding:0;}
+    .page{margin:0;box-shadow:none;border:none;border-radius:0;page-break-after:always;width:200mm;min-height:auto;}
     .page:last-child{page-break-after:avoid;}
     .print-btn{display:none;}
+    /* Header kompak */
+    .header{padding:8px 14px;gap:10px;}
+    .logo-wrap img,.logo-wrap svg{width:44px!important;height:44px!important;}
+    .header-text .title{font-size:12px!important;}
+    .header-text .instansi{font-size:7.5px!important;}
+    .header-text .subtitle{font-size:8px!important;margin-top:1px;}
+    .header-right{font-size:7.5px!important;}
+    .header-right .doc-no{font-size:8px!important;padding:2px 7px;}
+    /* Identitas pegawai kompak */
+    .emp-section{padding:6px 14px 6px;}
+    .emp-section-title{font-size:7.5px!important;margin-bottom:5px;}
+    .emp-grid{gap:4px;}
+    .emp-field{padding:4px 7px;}
+    .emp-field label{font-size:7px!important;margin-bottom:1px;}
+    .emp-field .val{font-size:8.5px!important;}
+    /* Ringkasan kompak */
+    .summary-section{padding:5px 14px;}
+    .summary-title{font-size:7.5px!important;margin-bottom:5px;}
+    .summary-grid{gap:4px;}
+    .sum-card{padding:5px 4px;}
+    .sum-card .num{font-size:14px!important;margin-bottom:1px;}
+    .sum-card .lbl{font-size:6.5px!important;}
+    /* Alert kompak */
+    .alert-row{padding:0 14px 6px;gap:5px;}
+    .alert-box{padding:5px 9px;gap:7px;}
+    .alert-box .icon-circle{width:26px!important;height:26px!important;font-size:13px!important;}
+    .alert-box .alert-num{font-size:16px!important;}
+    .alert-box .alert-label{font-size:7px!important;}
+    .alert-box .alert-sub{font-size:7px!important;}
+    /* Tabel kompak */
+    .table-section{padding:5px 14px 8px;}
+    .table-title{font-size:7.5px!important;margin-bottom:4px;}
+    table{font-size:7.5px!important;}
+    thead th{padding:4px 3px!important;font-size:7px!important;}
+    tbody td{padding:3px 3px!important;font-size:7.5px!important;}
+    .time-late,.time-early{font-size:7px!important;}
+    /* Footer kompak */
+    .footer{padding:6px 14px;}
+    .footer-left{font-size:7px!important;line-height:1.4;}
+    .footer-left strong{font-size:7.5px!important;}
+    .sign-box .sign-label{font-size:7.5px!important;}
+    .sign-box .sign-line{margin:22px 8px 3px;}
+    .sign-box .sign-name{font-size:7.5px!important;}
+    .sign-box .sign-nip{font-size:6.5px!important;}
   }
 </style>
 </head>
