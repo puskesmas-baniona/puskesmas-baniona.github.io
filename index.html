@@ -740,6 +740,14 @@
   .pr-input{width:100%;padding:7px 10px;border:1.5px solid #E2E8F0;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;transition:border-color .2s,box-shadow .2s;outline:none;color:#1E2A4A}
   .pr-input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(26,107,107,.08)}
   .pr-input::placeholder{color:#94a3b8;font-size:12px}
+  /* Dropdown nama pegawai di input presensi */
+  .pr-nama-wrap{position:relative;width:100%}
+  .pr-nama-dd{position:absolute;top:calc(100% + 3px);left:0;right:0;background:#fff;border:1.5px solid var(--teal);border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.13);z-index:8888;max-height:200px;overflow-y:auto;display:none}
+  .pr-nama-dd.open{display:block}
+  .pr-nama-opt{padding:8px 12px;font-size:13px;cursor:pointer;color:#1E2A4A;border-bottom:1px solid #f3f4f6;transition:background .12s}
+  .pr-nama-opt:last-child{border-bottom:none}
+  .pr-nama-opt:hover,.pr-nama-opt.highlighted{background:#f0fdf4;color:#155a2a;font-weight:600}
+  .pr-nama-opt .opt-nip{font-size:10px;color:#9ca3af;font-family:monospace;margin-top:1px}
   /* Tanggal custom — tombol pilih tanggal elegan */
   .pr-date-wrap{position:relative;display:flex;align-items:center}
   .pr-date-input{width:100%;padding:7px 10px;border:1.5px solid #E2E8F0;border-radius:8px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;transition:border-color .2s,box-shadow .2s;color:#1E2A4A;min-height:34px;box-sizing:border-box}
@@ -750,9 +758,9 @@
   .pr-time{width:100%;padding:7px 8px;border:1.5px solid #E2E8F0;border-radius:8px;font-size:12px;font-family:inherit;background:#fff;transition:border-color .2s,box-shadow .2s;outline:none;color:#1E2A4A}
   .pr-time:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(26,107,107,.08)}
   .cell-jk{font-size:12px;font-weight:700;border-radius:8px;padding:7px 6px;text-align:center;min-height:34px;display:flex;align-items:center;justify-content:center}
-  .remove-btn{font-size:14px;background:none;border:none;cursor:pointer;color:#CBD5E1;padding:2px;line-height:1;border-radius:6px;transition:color .15s,background .15s}
-  .remove-btn:hover{color:#F87171;background:#FFF5F5}
-  .remove-btn:disabled{color:#E2E8F0;cursor:default}
+  .remove-btn{font-size:14px;background:#FFF5F5;border:1.5px solid #FECACA;cursor:pointer;color:#EF4444;padding:2px 5px;line-height:1;border-radius:6px;transition:color .15s,background .15s,border-color .15s;font-weight:700}
+  .remove-btn:hover{color:#fff;background:#EF4444;border-color:#EF4444}
+  .remove-btn:disabled{color:#E2E8F0;background:none;border-color:#E2E8F0;cursor:default;font-weight:400}
   .inline-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:2px;padding:0 8px 6px}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
   .cal-day-hdr{font-size:11px;font-weight:700;color:#8896BB;text-align:center;padding:4px 0}
@@ -843,6 +851,29 @@
   @media (max-width:380px){
     .stats-grid{grid-template-columns:1fr}
   }
+
+  /* modalKet — sesuaikan untuk Android/mobile */
+  @media (max-width:640px){
+    #modalKet > div {
+      padding: 18px 16px 16px !important;
+      max-width: 100% !important;
+      width: 96% !important;
+      border-radius: 14px !important;
+    }
+    #modalKetNav {
+      padding: 5px 8px !important;
+      margin-bottom: 8px !important;
+    }
+    #modalKetNavDots div {
+      width: 22px !important;
+      height: 22px !important;
+      font-size: 9px !important;
+    }
+    #modalKetOptions {
+      max-height: 42vh !important;
+      gap: 6px !important;
+    }
+  }
 </style>
 </head>
 <body>
@@ -874,8 +905,8 @@
     </div>
     <div class="auth-tabs">
       <button class="auth-tab active" onclick="switchAuthTab('admin')"><span class="tab-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg></span><span class="tab-label">Admin</span></button>
-      <button class="auth-tab" onclick="switchAuthTab('pegawai')"><span class="tab-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="tab-label">Pegawai</span></button>
       <button class="auth-tab" onclick="switchAuthTab('manajemen')"><span class="tab-icon"><svg width="28" height="28" viewBox="2 2 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span><span class="tab-label">Manajemen</span></button>
+      <button class="auth-tab" onclick="switchAuthTab('pegawai')"><span class="tab-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="tab-label">Pegawai</span></button>
     </div>
     <div id="auth-error" class="error-msg hidden"></div>
     <div class="form-group"><label>Username</label><input type="text" id="auth-user" placeholder="Username atau NIP" /></div>
@@ -1114,6 +1145,14 @@ function loadDB(){
             console.log('[Firebase] Data dimuat dari Firestore ✅');
             // Render ulang UI jika sudah tampil
             try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
+            // Jika panel presensi aktif, re-render rekap dengan db.pegawai terbaru
+            try{
+              const _tabRekap=document.getElementById('tab-rekap');
+              if(_tabRekap&&_tabRekap.classList.contains('active')){
+                if(typeof submitted!=='undefined'&&submitted){if(typeof buildSummaryMap==='function'){_summaryMap=buildSummaryMap();renderSummary();}}
+                else if(typeof renderRekapPraHitung==='function') renderRekapPraHitung();
+              }
+            }catch(_e){}
           }
         }catch(e){ console.error('[Firebase] Gagal parse data Firestore:', e); }
       } else {
@@ -1402,7 +1441,7 @@ document.addEventListener('DOMContentLoaded',function(){
 function switchAuthTab(tab){
   currentTab=tab;
   document.querySelectorAll('.auth-tab').forEach((t,i)=>{
-    t.classList.toggle('active',(i===0&&tab==='admin')||(i===1&&tab==='pegawai')||(i===2&&tab==='manajemen'));
+    t.classList.toggle('active',(i===0&&tab==='admin')||(i===1&&tab==='manajemen')||(i===2&&tab==='pegawai'));
   });
   document.getElementById('auth-error').classList.add('hidden');
   // Tampilkan link reset sesuai tab aktif
@@ -1636,7 +1675,13 @@ function doLogin(){
     const peg=db.pegawai.find(x=>
       (norm(x.username)===uN||norm(x.nip)===uN) && norm(x.password)===pN
     );
-    if(peg){currentUser={role:'pegawai',nama:peg.nama,nip:peg.nip,pegawaiId:peg.id,username:u};saveSession();launchApp();}
+    if(peg){
+      // Cek apakah pegawai ini ditugaskan sebagai Kepegawaian oleh admin
+      const isKepegawaian = db.pejabat && db.pejabat.kepegawaianId && db.pejabat.kepegawaianId === peg.id;
+      const role = isKepegawaian ? 'kepegawaian' : 'pegawai';
+      currentUser={role,nama:peg.nama,nip:peg.nip,pegawaiId:peg.id,username:u};
+      saveSession();launchApp();
+    }
     else{err.textContent='NIP atau password tidak ditemukan.';err.classList.remove('hidden');}
   }
 }
@@ -1765,6 +1810,11 @@ function restoreSession(){
   // layar kosong — melainkan otomatis kembali ke layar login.
   try{
     currentUser=sessionData;
+    // Re-validasi role kepegawaian: jika admin mengubah penugasan, sesuaikan role
+    if(currentUser.role==='kepegawaian'||currentUser.role==='pegawai'){
+      const isKep=db.pejabat&&db.pejabat.kepegawaianId&&db.pejabat.kepegawaianId===currentUser.pegawaiId;
+      currentUser.role=isKep?'kepegawaian':'pegawai';
+    }
     launchApp();
     return true;
   }catch(e){
@@ -1797,7 +1847,7 @@ function restoreSession(){
 function launchApp(){
   document.getElementById('auth-screen').classList.add('hidden');
   document.getElementById('app-shell').classList.remove('hidden');
-  const roleLabel={admin:'Administrator',pegawai:'Pegawai',manajemen:'Tim Manajemen'};
+  const roleLabel={admin:'Administrator',pegawai:'Pegawai',manajemen:'Tim Manajemen',kepegawaian:'Kepegawaian'};
   document.getElementById('sb-role').textContent=roleLabel[currentUser.role]||'';
   document.getElementById('sb-name').textContent=currentUser.nama;
   buildSidebar();
@@ -1854,6 +1904,15 @@ function buildSidebar(){
     h+=ni('matrix','📐','Matrix Kegiatan');
     h+=ni('daftar-bayar','💰','Daftar Bayar');
     h+=ni('surat-pemberitahuan','📨','Surat Pemberitahuan');
+  } else if(currentUser.role==='kepegawaian'){
+    h+=`<div class="nav-section">Menu</div>`;
+    h+=ni('dashboard','📊','Dashboard');
+    h+=ni('kalender-peg','📅','Kalender Kegiatan');
+    h+=ni('cetak-st-peg','🖨️','Cetak Surat Tugas');
+    h+=ni('buat-lpd','📋','Buat LPD');
+    h+=ni('presensi-peg','🗓️','Presensi Saya');
+    h+=`<div class="nav-section">Kepegawaian</div>`;
+    h+=ni('presensi','🗓️','Rekap Presensi');
   } else {
     h+=`<div class="nav-section">Menu</div>`;
     h+=ni('dashboard','📊','Dashboard');
@@ -1998,11 +2057,11 @@ function navigateTo(panel){
     const dp=getPeriodeMgmtDefault();
     bayarFilterBulan=dp.bulan; bayarFilterTahun=dp.tahun;
   }
-  if(panel==='presensi'&&currentUser.role!=='admin'){navigateTo('dashboard');return;}
+  if(panel==='presensi'&&currentUser.role!=='admin'&&currentUser.role!=='kepegawaian'){navigateTo('dashboard');return;}
   if(panel==='pengaturan-mgmt'&&currentUser.role!=='admin'){navigateTo('dashboard');return;}
-  if(panel==='presensi-peg'&&currentUser.role!=='pegawai'){navigateTo('dashboard');return;}
-  if(panel==='kalender-peg'&&currentUser.role!=='pegawai'){navigateTo('dashboard');return;}
-  if(panel==='buat-lpd'&&currentUser.role!=='pegawai'){navigateTo('dashboard');return;}
+  if(panel==='presensi-peg'&&currentUser.role!=='pegawai'&&currentUser.role!=='kepegawaian'){navigateTo('dashboard');return;}
+  if(panel==='kalender-peg'&&currentUser.role!=='pegawai'&&currentUser.role!=='kepegawaian'){navigateTo('dashboard');return;}
+  if(panel==='buat-lpd'&&currentUser.role!=='pegawai'&&currentUser.role!=='kepegawaian'){navigateTo('dashboard');return;}
   try{
     if(rend[panel])rend[panel]();
     if(panel==='presensi'){
@@ -11022,12 +11081,12 @@ function tglSehari(d){
       <div style="font-size:16px;font-weight:800;color:#1E2A4A">📝 Keterangan Tidak Hadir</div>
       <button onclick="closeModalKet()" style="font-size:18px;color:#8896BB;background:none;border:none;cursor:pointer;padding:0;line-height:1">✕</button>
     </div>
-    <div id="modalKetNav" style="display:none;background:#F0F4FF;border-radius:10px;padding:10px 12px;margin-bottom:12px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="font-size:11px;color:#6B7A99;font-weight:600" id="modalKetNavLabel"></div>
-        <button onclick="hapusSemuaKetTH()" style="font-size:11px;font-weight:700;background:#FFF5F5;color:#DC2626;border:1px solid #FCA5A5;border-radius:6px;padding:3px 9px;cursor:pointer">🗑 Hapus Semua</button>
+    <div id="modalKetNav" style="display:none;background:#F0F4FF;border-radius:8px;padding:6px 10px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+        <div style="font-size:10px;color:#6B7A99;font-weight:600" id="modalKetNavLabel"></div>
+        <button onclick="hapusSemuaKetTH()" style="font-size:10px;font-weight:700;background:#FFF5F5;color:#DC2626;border:1px solid #FCA5A5;border-radius:5px;padding:2px 7px;cursor:pointer">🗑 Hapus Semua</button>
       </div>
-      <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap" id="modalKetNavDots"></div>
+      <div style="display:flex;gap:3px;align-items:center;flex-wrap:wrap" id="modalKetNavDots"></div>
     </div>
     <div id="modalKetInfo" style="font-size:13px;color:#6B7A99;margin-bottom:14px"></div>
     <div id="modalKetBonusInfo"></div>
@@ -11107,7 +11166,7 @@ function _showModalAt(idx){
   if(hasQueue){
     const belumDiisi=_modalQueue.filter(q=>!keteranganTH[ketKey(q.nama,q.ds)]).length;
     const labelBelum=belumDiisi>0?` · <span style="color:#DC2626;font-weight:700">⚠ ${belumDiisi} belum diisi</span>`:"";
-    document.getElementById("modalKetNavLabel").innerHTML=`${idx+1} dari ${_modalQueue.length} tanggal tidak hadir${labelBelum}`;
+    document.getElementById("modalKetNavLabel").innerHTML=`${idx+1} dari ${_modalQueue.length} tanggal${labelBelum}`;
     document.getElementById("modalKetNavDots").innerHTML=_modalQueue.map((_,i)=>{
       const ds=_modalQueue[i].ds;
       const tgl=parseDate(ds);
@@ -11118,9 +11177,9 @@ function _showModalAt(idx){
       const tc=isActive||hasKet?"white":"#DC2626";
       const border=isActive?"#3B5BDB":hasKet?"#10B981":"#FCA5A5";
       return`<div onclick="_showModalAt(${i})" title="${ds}" style="
-        width:30px;height:30px;border-radius:6px;cursor:pointer;
-        background:${bg};border:2px solid ${border};
-        color:${tc};font-size:11px;font-weight:700;
+        width:24px;height:24px;border-radius:5px;cursor:pointer;
+        background:${bg};border:1.5px solid ${border};
+        color:${tc};font-size:10px;font-weight:700;
         display:flex;align-items:center;justify-content:center;
         transition:all .15s;flex-shrink:0">${dayNum}</div>`;
     }).join("");
@@ -11357,12 +11416,14 @@ function hapusKetTH(){
   delete keteranganTH[ketKey(_modalNama,_modalDs)];
   savePresensiDB();
   _summaryMap=buildSummaryMap();
+  if(!submitted){ const tr=document.getElementById('tab-rekap'); if(tr&&tr.classList.contains('active')) renderRekapPraHitung(); }
   _showModalAt(_modalQueueIdx); // refresh tampilan tanpa tutup
 }
 
 function closeModalKet(){
   document.getElementById("modalKet").style.display="none";
-  renderSummary();
+  renderRows(); // perbarui tombol keterangan di baris input
+  if(submitted) renderSummary(); else renderRekapPraHitung();
 }
 // ═══════════════════════════════════════════════════════
 // KUOTA MANUAL AMBIL LIBUR
@@ -11552,22 +11613,40 @@ function loadPresensiDB(bulan, tahun){
       try{
         const fbData=JSON.parse(snap.data().data);
         const fbSaved=fbData.savedAt||"";
-        const localRaw=localStorage.getItem(key);
-        const localSaved=localRaw?JSON.parse(localRaw).savedAt||"":"";
-        // Pakai Firestore jika lebih baru dari localStorage
-        if(fbSaved > localSaved){
+        // Baca localStorage FRESH saat callback tiba — hindari race condition
+        const freshLocalRaw=localStorage.getItem(key);
+        const freshLocalSaved=freshLocalRaw?(JSON.parse(freshLocalRaw).savedAt||""):"";
+        if(fbSaved > freshLocalSaved){
           console.log('[Firebase] Presensi lebih baru di Firestore — diterapkan ✅');
+          // Simpan state sesi saat ini sebelum di-overwrite
+          const _ketSebelumnya = Object.assign({}, keteranganTH);
+          const _rowsSebelumnya = rows.slice();
           // Reset state sebelum apply
           rows=[{nama:"",tanggal:"",jamMasuk:"",jamPulang:""}];
           submitted=false; published=false; keteranganTH={}; ambilLiburUsed={}; kuotaManual={};
           tanggalMerah={}; tanggalCuti={};
           _applyPresensiData(fbData);
-          // Update localStorage dengan data terbaru
-          localStorage.setItem(key, JSON.stringify(fbData));
+          // Merge keterangan sesi ini ke fbData agar tidak hilang
+          Object.assign(keteranganTH, _ketSebelumnya);
+          // Merge rows sesi ini: tambahkan baris sesi yang punya presensi tapi tidak ada di fbData
+          _rowsSebelumnya.forEach(function(rSesi){
+            if(!rSesi.nama||!rSesi.tanggal) return;
+            const adaDiFb = rows.some(function(r){return r.nama===rSesi.nama && r.tanggal===rSesi.tanggal;});
+            if(!adaDiFb && (rSesi.jamMasuk||rSesi.jamPulang)) rows.push(rSesi);
+          });
+          const _mergedData = Object.assign({}, fbData, {keteranganTH: keteranganTH, rows: rows, savedAt: new Date().toISOString()});
+          localStorage.setItem(key, JSON.stringify(_mergedData));
+          // Simpan merged data ke Firestore agar savedAt terbaru (cegah race condition berikutnya)
+          fbDoc.set({ data: JSON.stringify(_mergedData), updatedAt: _mergedData.savedAt }).catch(function(){});
           // Re-render UI
           onSettingChange();
           renderTglMerah(); renderTglCuti(); renderRows();
           if(submitted){ _summaryMap=buildSummaryMap(); renderSummary(); renderKalender(); }
+          else {
+            // Cek apakah tab rekap sedang terbuka — re-render pra-rekap
+            const rekapTab=document.getElementById('tab-rekap');
+            if(rekapTab&&rekapTab.classList.contains('active')) renderRekapPraHitung();
+          }
           renderKirimStatus();
           _prNotif("info","☁️ Data diperbarui dari Cloud","Data presensi disinkronkan dari perangkat lain.");
         }
@@ -11606,6 +11685,7 @@ function batalkanKirimPresensi(){
     `Kalender & rekap presensi ${BULAN_NAMES[_activeBulan-1]} ${_activeTahun} disembunyikan dari pegawai.`);
 }
 function renderKirimStatus(){
+  _updateBtnHitung();
   const el=document.getElementById('pr-kirim-status');
   if(!el) return;
   if(published){
@@ -11627,7 +11707,7 @@ function clearDB(){
   const fbDoc=_getPresensiFirestoreDoc();
   if(fbDoc) fbDoc.delete().then(()=>console.log('[Firebase] Presensi bulan ini dihapus dari Firestore ✅')).catch(()=>{});
   rows=[{nama:"",tanggal:"",jamMasuk:"",jamPulang:""}];
-  submitted=false; published=false; _summaryMap={}; keteranganTH={}; ambilLiburUsed={}; kuotaManual={};
+  submitted=false; published=false; _summaryMap={}; ambilLiburUsed={}; kuotaManual={};
   tanggalMerah={}; tanggalCuti={};
   invalidateHKCache();
   document.getElementById("sJamMasuk").value="07:45";
@@ -12167,7 +12247,11 @@ function updateRow(i,f,v){
 }
 function getNameList(){
   const seen=new Set(),out=[];
-  for(const r of rows){const n=r.nama.trim();if(n&&!seen.has(n)){seen.add(n);out.push(n);}}
+  // 1. Nama dari pegawai list (db.pegawai atau fallback localStorage)
+  const pegList = (typeof _prNamaPegList==='function') ? _prNamaPegList() : (window.db&&db.pegawai?db.pegawai:[]);
+  pegList.forEach(p=>{const n=(p.nama||'').trim();if(n&&!seen.has(n)){seen.add(n);out.push(n);}});
+  // 2. Tambahkan nama dari rows[] yang belum ada di list
+  for(const r of rows){const n=(r.nama||'').trim();if(n&&!seen.has(n)){seen.add(n);out.push(n);}}
   return out;
 }
 
@@ -12242,17 +12326,32 @@ function renderRows(){
     const tglBorder  = rowBg ? "border-color:#86efac" : "";
     const mStyle = mS || "";
     const pStyle = pS || "";
+
+    const ketBtn = "";
+
     parts.push(`<div class="grid-input" style="${rowBg}">
-        <input type="text" value="${esc(row.nama)}" placeholder="Nama pegawai..." oninput="updateRow(${i},'nama',this.value)"
-          class="pr-input" style="${namaBorder}">
+        <div class="pr-nama-wrap">
+          <input type="text" value="${esc(row.nama)}" placeholder="Nama pegawai..." autocomplete="off"
+            class="pr-input" style="${namaBorder};width:100%"
+            oninput="prNamaInput(${i},this.value)"
+            onfocus="prNamaShowDD(${i})"
+            onkeydown="prNamaKey(event,${i})"
+            id="pr-nama-inp-${i}">
+          <div class="pr-nama-dd" id="pr-nama-dd-${i}"></div>
+          ${ketBtn}
+        </div>
         <div class="pr-date-wrap">
           <input type="date" value="${esc(row.tanggal)}" class="pr-date-input${tglEmpty?" empty":""}" style="${tglBorder}"
             onchange="updateRow(${i},'tanggal',this.value);this.classList.toggle('empty',!this.value)">
         </div>
-        <input type="time" step="60" value="${esc(row.jamMasuk)}" onchange="updateRow(${i},'jamMasuk',this.value)"
-          class="pr-time" style="${mStyle}">
-        <input type="time" step="60" value="${esc(row.jamPulang)}" onchange="updateRow(${i},'jamPulang',this.value)"
-          class="pr-time" style="${pStyle}">
+        <input type="text" inputmode="numeric" maxlength="5" value="${esc(row.jamMasuk)}" placeholder="08:00"
+          class="pr-time" style="${mStyle}" id="pr-jm-${i}"
+          oninput="prJamInput(this,${i},'jamMasuk')"
+          onblur="prJamBlur(this,${i},'jamMasuk')">
+        <input type="text" inputmode="numeric" maxlength="5" value="${esc(row.jamPulang)}" placeholder="16:00"
+          class="pr-time" style="${pStyle}" id="pr-jp-${i}"
+          oninput="prJamInput(this,${i},'jamPulang')"
+          onblur="prJamBlur(this,${i},'jamPulang')">
         <div class="cell-jk" style="${jkStyle}">${jkText}</div>
         <button class="remove-btn" onclick="removeRow(${i})" ${rows.length===1?"disabled":""} title="Hapus baris">✕</button>
       </div>
@@ -12262,8 +12361,177 @@ function renderRows(){
 }
 
 // ═══════════════════════════════════════════════════════
-// HITUNG & RENDER SUMMARY
+// AUTOCOMPLETE NAMA PEGAWAI — Input Presensi
 // ═══════════════════════════════════════════════════════
+let _prNamaHighlight = {}; // {rowIndex: optionIndex}
+
+function _prNamaPegList(){
+  // Coba ambil dari db global
+  if(window.db && window.db.pegawai && window.db.pegawai.length)
+    return window.db.pegawai;
+  // Fallback: baca langsung dari localStorage jika db belum siap
+  try{
+    const raw = localStorage.getItem('st_app_db_v2');
+    if(raw){ const p=JSON.parse(raw); if(p && Array.isArray(p.pegawai) && p.pegawai.length) return p.pegawai; }
+  }catch(e){}
+  return [];
+}
+
+function _prNamaFilter(q){
+  const pegList = _prNamaPegList();
+  if(!q.trim()) return pegList.slice(0,30);
+  const norm = s => String(s||'').toLowerCase().replace(/\s+/g,' ').trim();
+  const qn = norm(q);
+  return pegList.filter(p =>
+    norm(p.nama).includes(qn) ||
+    (p.namaPanggilan && norm(p.namaPanggilan).includes(qn)) ||
+    String(p.nip||'').includes(q.replace(/\s/g,''))
+  ).slice(0,20);
+}
+
+function prNamaInput(i, val){
+  updateRow(i,'nama',val);
+  prNamaShowDD(i);
+}
+
+function prNamaShowDD(i){
+  const inp = document.getElementById('pr-nama-inp-'+i);
+  const dd  = document.getElementById('pr-nama-dd-'+i);
+  if(!inp || !dd) return;
+  const q   = inp.value;
+  const opts = _prNamaFilter(q);
+  _prNamaHighlight[i] = -1;
+  if(!opts.length){ dd.classList.remove('open'); dd.innerHTML=''; return; }
+  dd.innerHTML = opts.map((p,oi)=>
+    '<div class="pr-nama-opt" id="pr-nama-opt-'+i+'-'+oi+'" data-row="'+i+'" data-oi="'+oi+'" data-nama="'+esc(p.nama)+'">' +
+      '<div>'+esc(p.nama)+(p.namaPanggilan?' <span style="color:#9ca3af;font-size:11px">('+esc(p.namaPanggilan)+')</span>':'')+
+      '</div><div class="opt-nip">'+(p.nip||'')+'</div></div>'
+  ).join('');
+  dd.classList.add('open');
+  // Tutup dropdown lain yang sedang terbuka
+  document.querySelectorAll('.pr-nama-dd.open').forEach(el=>{
+    if(el.id!=='pr-nama-dd-'+i) el.classList.remove('open');
+  });
+  // Pasang listener — pointerdown+preventDefault mencegah blur sebelum klik terdaftar
+  dd.querySelectorAll('.pr-nama-opt').forEach(function(el){
+    el.addEventListener('mouseover', function(){ prNamaHL(i, parseInt(el.dataset.oi)); });
+    el.addEventListener('pointerdown', function(e){
+      e.preventDefault();
+      prNamaPilih(i, el.dataset.nama);
+    });
+  });
+}
+
+function prNamaHL(i, oi){
+  _prNamaHighlight[i] = oi;
+  document.querySelectorAll(`#pr-nama-dd-${i} .pr-nama-opt`).forEach((el,idx)=>{
+    el.classList.toggle('highlighted', idx===oi);
+  });
+}
+
+function prNamaKey(e, i){
+  const dd  = document.getElementById('pr-nama-dd-'+i);
+  if(!dd || !dd.classList.contains('open')) return;
+  const opts = dd.querySelectorAll('.pr-nama-opt');
+  let hi = _prNamaHighlight[i] ?? -1;
+  if(e.key==='ArrowDown'){
+    e.preventDefault();
+    hi = Math.min(hi+1, opts.length-1);
+    _prNamaHighlight[i]=hi;
+    opts.forEach((el,idx)=>el.classList.toggle('highlighted',idx===hi));
+    if(opts[hi]) opts[hi].scrollIntoView({block:'nearest'});
+  } else if(e.key==='ArrowUp'){
+    e.preventDefault();
+    hi = Math.max(hi-1, 0);
+    _prNamaHighlight[i]=hi;
+    opts.forEach((el,idx)=>el.classList.toggle('highlighted',idx===hi));
+    if(opts[hi]) opts[hi].scrollIntoView({block:'nearest'});
+  } else if(e.key==='Enter'){
+    if(hi>=0 && opts[hi]){
+      e.preventDefault();
+      prNamaPilih(i, opts[hi].dataset.nama);
+    }
+  } else if(e.key==='Escape'){
+    dd.classList.remove('open');
+  }
+}
+
+function prNamaPilih(i, nama){
+  const inp = document.getElementById('pr-nama-inp-'+i);
+  const dd  = document.getElementById('pr-nama-dd-'+i);
+  if(inp) inp.value = nama;
+  if(dd)  dd.classList.remove('open');
+  // Update data langsung tanpa trigger renderRows (cegah race condition DOM)
+  if(rows[i] !== undefined){
+    rows[i].nama = nama;
+    autoSave();
+  }
+  // Pindahkan fokus ke input tanggal, render ulang setelah delay singkat
+  const tglEl = inp && inp.closest('.grid-input') && inp.closest('.grid-input').querySelector('input[type="date"]');
+  setTimeout(function(){
+    if(tglEl) tglEl.focus();
+    renderRows();
+  }, 80);
+}
+
+// Tutup semua dropdown nama saat klik di luar
+document.addEventListener('click', function(e){
+  if(!e.target.closest('.pr-nama-wrap')){
+    document.querySelectorAll('.pr-nama-dd.open').forEach(el=>el.classList.remove('open'));
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════
+// INPUT JAM — format teks HH:MM otomatis
+// ═══════════════════════════════════════════════════════
+function prJamInput(el, i, field){
+  let v = el.value.replace(/[^0-9]/g, '');
+  // Otomatis sisipkan titik dua setelah 2 digit jam
+  if(v.length > 2) v = v.slice(0,2) + ':' + v.slice(2,4);
+  el.value = v;
+  // Simpan ke rows[] langsung (tanpa re-render) agar tidak ganggu pengetikan
+  if(rows[i] !== undefined) rows[i][field] = v;
+}
+
+function prJamBlur(el, i, field){
+  let v = el.value.trim();
+  if(!v){ updateRow(i, field, ''); return; }
+  // Normalisasi berbagai format: 800 → 08:00, 8:0 → 08:00, 8 → 08:00
+  v = v.replace(/[^0-9:]/g, '');
+  let jam, menit;
+  if(v.includes(':')){
+    [jam, menit] = v.split(':');
+  } else if(v.length <= 2){
+    jam = v; menit = '00';
+  } else {
+    jam = v.slice(0, v.length - 2);
+    menit = v.slice(-2);
+  }
+  jam   = parseInt(jam  ||'0',10);
+  menit = parseInt(menit||'0',10);
+  // Validasi rentang
+  if(jam > 23) jam = 23;
+  if(menit > 59) menit = 59;
+  const formatted = String(jam).padStart(2,'0') + ':' + String(menit).padStart(2,'0');
+  el.value = formatted;
+  updateRow(i, field, formatted);
+}
+
+function _updateBtnHitung(){
+  const btn=document.getElementById('btnHitung');
+  if(!btn) return;
+  if(submitted){
+    btn.style.background='#16a34a';
+    btn.style.borderColor='#16a34a';
+    btn.innerHTML='✅ Sudah Dihitung';
+  } else {
+    btn.style.background='';
+    btn.style.borderColor='';
+    btn.innerHTML='▶ Hitung Sekarang';
+  }
+}
+
 function hitungSekarang(){
   _prLoad("Menghitung data presensi...");
   setTimeout(()=>{
@@ -12276,12 +12544,16 @@ function hitungSekarang(){
     savePresensiDB();
     _prUnload();
     switchTab('rekap');
+    _updateBtnHitung();
+    const jmlPegawai=Object.keys(_summaryMap).length;
+    _prNotif("success","✅ Rekap berhasil dihitung",`${jmlPegawai} pegawai telah dihitung. Periksa rekap di tab Rekap.`);
   },30);
 }
 
 // Buka modal keterangan untuk semua tanggal TH seorang pegawai (navigasi lengkap)
 function openModalKetAll(nama){
-  const s=_summaryMap[nama];
+  // Gunakan _summaryMap jika sudah dihitung, fallback ke buildSummaryMap() untuk pra-rekap
+  const s=_summaryMap[nama] || buildSummaryMap()[nama];
   if(!s) return;
   // Gabungkan hariTidakHadir + ambilLiburDates + kompensasiPiketDates + hariDinasSinkron
   // agar semua tanggal yang sudah diberi keterangan tetap bisa diedit kembali
@@ -12302,9 +12574,219 @@ function openModalKetAll(nama){
   openModalKet(nama, allEditable[0], queue);
 }
 
+// ═══════════════════════════════════════════════════════
+// REKAP PRA-HITUNG — tampilkan pegawai + keterangan TH sebelum submit
+// ═══════════════════════════════════════════════════════
+function renderRekapPraHitung(){
+  const hk = getHariKerja();
+  // Bangun estimasi summary seperti rekap sesungguhnya
+  const praMap = buildSummaryMap();
+  let namaList = getNameList();
+  if(!namaList.length){
+    const pl = _prNamaPegList();
+    namaList = pl.length ? pl.map(function(p){return p.nama||p;}) : [];
+  }
+
+  // Update label periode
+  const periodeEl = document.getElementById('rekapPeriode');
+  if(periodeEl) periodeEl.textContent = getPeriodeStr();
+
+  // Summary cards — estimasi
+  let totalTerlambat=0,totalPulangCepat=0,countTerlambat=0,countPulangCepat=0,sumJK=0,countJK=0,totalTidakHadir=0;
+  rows.forEach(r=>{
+    const res=computeRow(r);
+    if(!res||res.skip)return;
+    if(!res.isDinas){
+      totalTerlambat+=res.terlambat||0; totalPulangCepat+=res.pulangCepat||0;
+      if(res.statusMasuk==='terlambat')countTerlambat++;
+      if(res.statusPulang==='cepat')countPulangCepat++;
+    }
+    if(res.jamKerjaAktual>0){sumJK+=res.jamKerjaAktual;countJK++;}
+  });
+  const avgJK=countJK?Math.round(sumJK/countJK):0;
+  namaList.forEach(n=>{totalTidakHadir+=(praMap[n]?.hariTidakHadir.length||0);});
+
+  document.getElementById('summaryGrid').innerHTML=[
+    {icon:'👥',val:namaList.length,lbl:'Total Pegawai',color:'#3B5BDB'},
+    {icon:'📅',val:hk.length+' hari',lbl:'Hari Kerja',color:'#059669'},
+    {icon:'🔴',val:countTerlambat,lbl:'Terlambat',color:'#DC2626'},
+    {icon:'🟡',val:countPulangCepat,lbl:'Pulang Cepat',color:'#D97706'},
+    {icon:'⏱️',val:totalPulangCepat>0?minsToHHMM(totalPulangCepat):'0:00',lbl:'Total Pulang Cepat',color:'#7C3AED'},
+    {icon:'❌',val:totalTidakHadir,lbl:'Tidak Hadir',color:'#991B1B'},
+    {icon:'🟢',val:fmtShort(avgJK),lbl:'Rata-rata Jam Kerja',color:'#16A34A'},
+  ].map(c=>`<div class="summary-card"><div class="icon">${c.icon}</div><div class="val" style="color:${c.color}">${c.val}</div><div class="lbl">${c.lbl}</div></div>`).join('');
+
+  const tbody = document.getElementById('rekapBody');
+  const tfoot = document.getElementById('rekapFoot');
+  if(!tbody){ console.error('[praHitung] rekapBody tidak ditemukan!'); return; }
+  tbody.innerHTML='';
+  if(tfoot) tfoot.innerHTML='';
+
+  if(!namaList.length){
+    tbody.innerHTML='<tr><td colspan="12" style="text-align:center;color:#9ca3af;padding:20px;font-size:13px">Belum ada data pegawai</td></tr>';
+    return;
+  }
+
+  let totHadir=0,totTH=0,totDinasUkm=0,totCuti=0;
+
+  namaList.forEach((nama,idx)=>{
+    const s = praMap[nama] || {
+      hariHadir:0, hariTidakHadir:[], hariHadirList:[], ambilLiburDates:[],
+      kompensasiPiketDates:[], hariDinasSinkron:[], bonusCutiTotal:0,
+      totalKuota:0, ambilLiburCount:0, bonusSisa:0, kuotaTambahan:0
+    };
+
+    // Hitung keterangan counts — sama persis dengan renderSummary
+    const ketCounts={alpa:0,sakit:0,ijin:0,cuti:0,ambildibur:0,kompensasipiket:0,dinasUkm:0,lainnya:0,hadir:0};
+    s.hariTidakHadir.forEach(ds=>{
+      const k=keteranganTH[ketKey(nama,ds)];
+      if(k==='alpa'||!k||k==='')ketCounts.alpa++;
+      else if(k==='sakit')ketCounts.sakit++;
+      else if(k==='ijin')ketCounts.ijin++;
+      else if(k==='cuti')ketCounts.cuti++;
+      else if(k&&k.startsWith('lainnya-ijin:'))ketCounts.ijin++;
+      else if(k&&(k.startsWith('lainnya:')||k.startsWith('lainnya-hadir:')))ketCounts.lainnya++;
+    });
+    s.hariHadirList.forEach(ds=>{
+      const k=keteranganTH[ketKey(nama,ds)];
+      if(k==='dinas'||k==='ukm')ketCounts.dinasUkm++;
+      else if(k==='ambildibur')ketCounts.ambildibur++;
+      else if(k==='kompensasipiket')ketCounts.kompensasipiket++;
+      else if(k==='hadir')ketCounts.hadir++;
+    });
+    const tanpaKet=s.hariTidakHadir.filter(ds=>{const k=keteranganTH[ketKey(nama,ds)];return !k||k===''||(k==='alpa');}).length;
+    const dinasUkmCount=ketCounts.dinasUkm;
+    totHadir+=s.hariHadir; totTH+=s.hariTidakHadir.length;
+    totDinasUkm+=dinasUkmCount; totCuti+=ketCounts.cuti;
+
+    // Peringatan & bonus — sama dengan renderSummary
+    const ambildiburWarning = s.ambilLiburDates && s.ambilLiburDates.length > s.totalKuota
+      ? `<div style="font-size:10px;color:#DC2626;font-weight:700;margin-top:4px">⚠ ${s.ambilLiburDates.length - s.totalKuota} Ambil Libur melebihi kuota — dihitung Tidak Hadir</div>`
+      : '';
+    const kuotaTambahanDisplay = s.kuotaTambahan>0 ? `<span style="color:#3B5BDB"> · ➕ Manual: +${s.kuotaTambahan}</span>` : '';
+    const bonusCutiInfo = (s.bonusCutiTotal > 0 || s.kuotaTambahan > 0)
+      ? `<div style="font-size:10px;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:6px;padding:4px 8px;margin-bottom:6px;color:#059669;font-weight:700">
+          🌟 Bonus Cuti Bersama: ${s.bonusCutiTotal} hari${kuotaTambahanDisplay} · Total: ${s.totalKuota} · Terpakai: ${s.ambilLiburCount} · Sisa: ${s.bonusSisa}
+         </div>${ambildiburWarning}`
+      : '';
+
+    // HTML keterangan TH per-tanggal di expand — sama dengan renderSummary
+    const ketSummaryHtml = s.hariTidakHadir.length ? `
+      <div style="font-size:11px;font-weight:800;color:#1E2A4A;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid #EEF2FF">${esc(nama)}</div>
+      ${bonusCutiInfo}
+      <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+        ${KET_TH_LIST.map(k=>`
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+            <span style="font-size:11px;color:${k.color};font-weight:600">${k.icon} ${k.label}</span>
+            <span style="font-size:12px;font-weight:800;color:${(ketCounts[k.val]||0)>0?k.color:'#C4CFEE'}">${ketCounts[k.val]||0}</span>
+          </div>`).join('')}
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;border-top:1px solid #EEF2FF;padding-top:4px;margin-top:2px">
+          <span style="font-size:11px;color:#8896BB;font-weight:600">❓ Belum diisi</span>
+          <span style="font-size:12px;font-weight:800;color:${tanpaKet>0?'#DC2626':'#C4CFEE'}">${tanpaKet}</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        ${s.hariTidakHadir.map(ds=>{
+          const ket=keteranganTH[ketKey(nama,ds)];
+          const ki=ket?getKetInfo(ket):null;
+          const queueStr=JSON.stringify(s.hariTidakHadir.map(d=>({nama,ds:d}))).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+          return`<button onclick="openModalKet('${esc(nama)}','${ds}',${queueStr})" style="
+            display:flex;align-items:center;justify-content:space-between;gap:6px;
+            background:${ki?ki.bg:'#F8FAFF'};border:1px solid ${ki?ki.border:'#E2E8F0'};
+            border-radius:8px;padding:5px 8px;cursor:pointer;width:100%;text-align:left">
+            <span style="font-size:11px;color:#475068;font-weight:500">${esc(fmtTglShort(ds))}</span>
+            ${ki
+              ?`<span style="font-size:10px;font-weight:700;color:${ki.color};white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">${ki.icon} ${ki.label}</span>`
+              :`<span style="font-size:10px;font-weight:600;color:#8896BB;white-space:nowrap">＋ Isi</span>`}
+          </button>`;
+        }).join('')}
+      </div>` : `<span style="font-size:12px;color:#C4CFEE">–</span>`;
+
+    // Baris utama tabel — sama persis dengan renderSummary
+    const tr = document.createElement('tr');
+    const expandId = `pra-expand-${idx}`;
+    tr.innerHTML=`
+      <td class="sticky-col1" style="text-align:center;font-size:11px;padding:8px 4px">${idx+1}</td>
+      <td class="sticky-col2" style="font-weight:700;color:#1E2A4A;max-width:110px;min-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;padding:8px 6px">${esc(nama)}</td>
+      <td style="color:#475068;text-align:center;font-size:11px;padding:8px 4px">${hk.length}</td>
+      <td style="font-weight:700;color:#16A34A;text-align:center;font-size:11px;padding:8px 4px">${s.hariHadir}</td>
+      <td style="font-weight:700;color:${s.hariTidakHadir.length>0?'#DC2626':'#C4CFEE'};text-align:center;font-size:11px;padding:8px 4px">${s.hariTidakHadir.length}</td>
+      <td style="font-weight:700;color:${dinasUkmCount>0?'#14532d':'#C4CFEE'};text-align:center;font-size:11px;padding:8px 4px">${dinasUkmCount>0?dinasUkmCount:0}</td>
+      <td style="font-weight:700;color:${ketCounts.cuti>0?'#0369A1':'#C4CFEE'};text-align:center;font-size:11px;padding:8px 4px">${ketCounts.cuti>0?ketCounts.cuti:0}</td>
+      <td style="font-weight:700;color:${s.bonusCutiTotal>0?'#059669':'#C4CFEE'};text-align:center;font-size:11px;padding:8px 4px">${s.bonusCutiTotal>0?s.bonusCutiTotal:0}</td>
+      <td style="font-weight:700;color:${s.ambilLiburCount>0?(s.ambilLiburCount>s.totalKuota?'#DC2626':'#059669'):'#C4CFEE'};text-align:center;font-size:11px;padding:8px 4px">${s.ambilLiburCount>0?s.ambilLiburCount:0}</td>
+      <td style="text-align:center;padding:3px 2px">
+        <button onclick="openModalKuota('${esc(nama)}')" title="Tambah kuota manual untuk ${esc(nama)}" style="
+          background:${s.kuotaTambahan>0?'#EEF2FF':'#F8FAFF'};
+          color:${s.kuotaTambahan>0?'#3B5BDB':'#8896BB'};
+          border:1.5px solid ${s.kuotaTambahan>0?'#C7D2FE':'#E2E8F0'};
+          border-radius:7px;padding:2px 5px;font-size:10px;cursor:pointer;font-weight:700;white-space:nowrap">
+          ${s.kuotaTambahan>0?'+'+s.kuotaTambahan:'+ Tambah'}
+        </button>
+      </td>
+      <td style="text-align:center;padding:4px 3px"><button onclick="toggleDetail('${expandId}')" style="background:#EEF2FF;color:#3B5BDB;border:1px solid #C7D2FE;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap">▼</button></td>
+      <td style="text-align:center;padding:4px 3px"><button onclick="openModalKetAll('${esc(nama)}')" style="background:#F0F4FF;color:#6B7A99;border:1px solid #D0D9F0;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap">⚙</button></td>`;
+    tbody.appendChild(tr);
+
+    // Detail row — sama persis dengan renderSummary
+    const detailTr = document.createElement('tr');
+    detailTr.id = expandId;
+    detailTr.style.display = 'none';
+    const thHtml = s.hariTidakHadir.length
+      ? s.hariTidakHadir.map(ds=>{
+          const ket=keteranganTH[ketKey(nama,ds)];
+          const ki=ket?getKetInfo(ket):null;
+          const badge=ki?`<span style="font-size:10px;font-weight:700;color:${ki.color};background:${ki.bg};border:1px solid ${ki.border};border-radius:6px;padding:1px 5px;margin-left:3px">${ki.icon} ${ki.label}</span>`:'';
+          return`<div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">${esc(fmtTglShort(ds))}${badge}</div>`;
+        }).join('')
+      : '–';
+    detailTr.innerHTML=`
+      <td colspan="12" style="padding:12px 16px;background:#F8FAFF;border-top:2px solid #EEF2FF">
+        <div style="font-size:11px">
+          <div>
+            <div style="font-weight:700;color:#1E2A4A;margin-bottom:6px">❌ Tanggal Tidak Hadir (${s.hariTidakHadir.length})</div>
+            <div style="color:#DC2626;line-height:1.6">${thHtml}</div>
+          </div>
+        </div>
+        ${(()=>{
+          const dinasHadir=s.hariHadirList.filter(ds=>{const k=keteranganTH[ketKey(nama,ds)];return k==='dinas'||k==='ukm';});
+          if(!dinasHadir.length)return '';
+          const dinasQueueStr=JSON.stringify(dinasHadir.map(d=>({nama,ds:d}))).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+          const dinasHtml=dinasHadir.map(ds=>{const k=keteranganTH[ketKey(nama,ds)];const ki=getKetInfo(k);return`<button onclick="openModalKet('${esc(nama)}','${ds}',${dinasQueueStr})" style="display:flex;align-items:center;justify-content:space-between;gap:6px;background:${ki.bg};border:1px solid ${ki.border};border-radius:8px;padding:5px 8px;cursor:pointer;width:100%;text-align:left"><span style="font-size:11px;color:#475068;font-weight:500">${esc(fmtTglShort(ds))}</span><span style="font-size:10px;font-weight:700;color:${ki.color};white-space:nowrap">${ki.icon} ${ki.label}</span></button>`;}).join('');
+          return`<div style="margin-top:12px;padding-top:12px;border-top:1px solid #EEF2FF"><div style="font-weight:700;color:#14532d;margin-bottom:6px;font-size:11px">✈️ Perjalanan Dinas (hadir presensi) — ${dinasHadir.length} hari</div><div style="display:flex;flex-direction:column;gap:3px">${dinasHtml}</div></div>`;
+        })()}
+        ${bonusCutiInfo?`<div style="margin-top:12px;padding-top:12px;border-top:1px solid #EEF2FF">${bonusCutiInfo}</div>`:''}
+        ${s.hariTidakHadir.length?`<div style="margin-top:12px"><div style="font-weight:700;color:#1E2A4A;margin-bottom:6px">📝 Keterangan Tidak Hadir</div>${ketSummaryHtml}</div>`:''}
+      </td>`;
+    tbody.appendChild(detailTr);
+  });
+
+  // Footer total
+  if(tfoot) tfoot.innerHTML=`<tr>
+    <td class="sticky-col1"></td><td class="sticky-col2" style="font-weight:800;font-size:12px">TOTAL</td>
+    <td style="text-align:center">${hk.length}</td>
+    <td style="text-align:center">${totHadir}</td>
+    <td style="text-align:center">${totTH}</td>
+    <td style="text-align:center">${totDinasUkm}</td>
+    <td style="text-align:center">${totCuti}</td>
+    <td></td><td></td><td></td><td></td><td></td></tr>`;
+
+  const expDesc = document.getElementById('exportDesc');
+  if(expDesc) expDesc.textContent = namaList.length+' pegawai · '+hk.length+' hari kerja · estimasi (belum final)';
+  if(periodeEl) periodeEl.textContent = getPeriodeStr();
+  const _pjp=document.getElementById('rekapJudulPrefix'); if(_pjp) _pjp.textContent='📋 Pra Rekap Presensi';
+}
+
+
 function renderSummary(){
   const hk=getHariKerja();
-  const namaList=getNameList();
+  // Selalu rebuild agar nama dari db.pegawai ikut masuk
+  _summaryMap=buildSummaryMap();
+  let namaList=getNameList();
+  console.log('[renderSummary] namaList:', namaList.length, namaList);
+  console.log('[renderSummary] _summaryMap keys:', Object.keys(_summaryMap));
+  console.log('[renderSummary] submitted:', submitted, 'rows:', rows.length);
+  console.log('[renderSummary] db.pegawai:', window.db&&db.pegawai?db.pegawai.length:0);
   let totalTerlambat=0,totalPulangCepat=0,countTerlambat=0,countPulangCepat=0;
   let sumJK=0,countJK=0,totalTidakHadir=0;
 
@@ -12494,6 +12976,7 @@ function renderSummary(){
     <td></td><td></td><td></td><td></td><td></td></tr>`;
 
   document.getElementById("rekapPeriode").textContent=getPeriodeStr();
+  const _rjp=document.getElementById("rekapJudulPrefix"); if(_rjp) _rjp.textContent="📊 Rekap Presensi";
   document.getElementById("exportDesc").textContent=
     `${namaList.length} pegawai · ${hk.length} hari kerja · ${totalTidakHadir} tidak hadir · ${countTerlambat} terlambat`;
 }
@@ -13033,11 +13516,12 @@ function spBuildSuratPreview(grup, bulan, tahun, tglSuratVal, nomor, total){
       const borderL = '';
       const stBg = isTujuan ? '#ffff80' : rowBg;
       return `<tr>
-        <td style="${borderL}border:1px solid ${bClr};padding:${pd};text-align:center;vertical-align:middle;font-size:${isSekolah?'7pt':'8pt'};word-break:break-word;background:${stBg};white-space:nowrap;color:#999;font-weight:400">${isSekolah?tandaCol:noBaris}</td>
+        <td style="border:1px solid ${bClr};padding:${pd};text-align:center;vertical-align:middle;font-size:${isSekolah?'7pt':'8pt'};word-break:break-word;background:${stBg};white-space:nowrap;color:#555;font-weight:400">${noBaris}</td>
         <td style="border:1px solid ${bClr};padding:${pd};text-align:center;vertical-align:middle;font-size:${fs};font-weight:${fwBold};word-break:break-word;background:${stBg};">${hariTampil}</td>
         <td style="border:1px solid ${bClr};padding:${pd};text-align:center;vertical-align:middle;font-size:${fsDate};word-break:break-word;background:${stBg};color:${isSesuaikan?'#555':'#000'};font-weight:${fwBold}">${tglTampil}</td>
         <td style="border:1px solid ${bClr};padding:${pd2};vertical-align:middle;font-size:${fs};font-weight:${isTujuan?'700':'600'};word-break:break-word;overflow-wrap:break-word;background:${stBg};">${lokNama}</td>
         <td style="border:1px solid ${bClr};padding:${pd2};vertical-align:middle;font-size:${fs};word-break:break-word;overflow-wrap:break-word;background:${stBg};font-weight:${fwBold}">${lokDesa}</td>
+        ${isSekolah?`<td style="border:1px solid ${bClr};padding:${pd};text-align:center;vertical-align:middle;font-size:7pt;word-break:break-word;background:${stBg};white-space:nowrap;color:#999;font-weight:400">${tandaCol}</td>`:''}
       </tr>`;
     }).join('');
     const catNum=gi+1 < 10 ? '0'+(gi+1) : gi+1;
@@ -13046,6 +13530,7 @@ function spBuildSuratPreview(grup, bulan, tahun, tglSuratVal, nomor, total){
     return `<tr>
       <td style="border:1px solid #969696;padding:${catPd};text-align:center;vertical-align:middle;font-size:${catFs};font-weight:bold;word-break:break-word;background:#e5e7eb;color:#111">${catNum}.</td>
       <td colspan="4" style="border:1px solid #969696;padding:${catPd};text-align:left;vertical-align:middle;font-size:${catFs};font-weight:bold;word-break:break-word;background:#e5e7eb;color:#111">${maksudKey}</td>
+      ${isSekolah?`<td style="border:1px solid #969696;padding:${catPd};background:#e5e7eb;"></td>`:''}
     </tr>${rows}`;
   }).join('');
 
@@ -13163,19 +13648,21 @@ function spBuildSuratPreview(grup, bulan, tahun, tglSuratVal, nomor, total){
           <div style="text-align:center;margin-bottom:${isSekolah?'6px':'10px'};font-size:${isSekolah?'9.5pt':'11pt'}">${namaBulan.toUpperCase()} ${tahun}</div>
           <table style="width:100%;max-width:100%;border-collapse:collapse;font-size:${isSekolah?'8pt':'9.5pt'};table-layout:fixed;border:2px solid #6b7280">
             <colgroup>
-              <col style="width:${isSekolah?'7%':'6%'}">
-              <col style="width:${isSekolah?'18%':'18%'}">
-              <col style="width:${isSekolah?'12%':'12%'}">
-              <col style="width:${isSekolah?'35%':'36%'}">
-              <col style="width:${isSekolah?'28%':'28%'}">
+              <col style="width:${isSekolah?'6%':'6%'}">
+              <col style="width:${isSekolah?'16%':'18%'}">
+              <col style="width:${isSekolah?'11%':'12%'}">
+              <col style="width:${isSekolah?'33%':'36%'}">
+              <col style="width:${isSekolah?'27%':'28%'}">
+              ${isSekolah?'<col style="width:7%">':''}
             </colgroup>
             <thead>
               <tr style="background:#e5e7eb;color:#111">
-                <th style="border:1px solid #969696;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">${isSekolah?'KET.':'NO.'}</th>
+                <th style="border:1px solid #969696;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">NO.</th>
                 <th style="border:1px solid #969696;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">HARI</th>
                 <th style="border:1px solid #969696;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">TANGGAL</th>
                 <th style="border:1px solid #969696;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">LOKASI KEGIATAN</th>
                 <th style="border:1px solid #969696;padding:${isSekolah?'2px 3px':'4px 5px'};text-align:center;vertical-align:middle;word-break:break-word;font-size:${isSekolah?'7.5pt':'inherit'}">DESA / KELURAHAN</th>
+                ${isSekolah?`<th style="border:1px solid #969696;padding:2px 3px;text-align:center;vertical-align:middle;word-break:break-word;font-size:7.5pt">KET.</th>`:''}
               </tr>
             </thead>
             <tbody>${tabelJadwal}</tbody>
@@ -15310,7 +15797,7 @@ function toggleDetail(id){
 function resetAll(){
   if(!confirm("Reset semua data input bulan ini? Data tersimpan di database juga akan terhapus.")) return;
   rows=[{nama:"",tanggal:"",jamMasuk:"",jamPulang:""}];
-  submitted=false;published=false;_summaryMap={};keteranganTH={};ambilLiburUsed={};kuotaManual={};
+  submitted=false;published=false;_summaryMap={};ambilLiburUsed={};kuotaManual={};
   invalidateHKCache();
   switchTab('input');
   document.getElementById("notif").style.display="none";
@@ -15854,6 +16341,27 @@ function switchTab(tab){
     if(btn)btn.className='pr-tab'+(t===tab?' active':'');
   });
   if(tab==='kalender')renderKalender();
+  if(tab==='rekap'){
+    if(submitted){
+      _summaryMap=buildSummaryMap();
+      renderSummary();
+    } else {
+      // Jika rows masih kosong (Firestore sedang load), tampilkan loading sementara
+      const rowsAda = rows.some(r=>r.nama&&r.nama.trim());
+      if(!rowsAda){
+        const tbody=document.getElementById('rekapBody');
+        if(tbody) tbody.innerHTML='<tr><td colspan="12" style="text-align:center;padding:24px;color:#9ca3af;font-size:13px">⏳ Memuat data...</td></tr>';
+        // Retry setelah Firestore selesai (max 3 detik)
+        setTimeout(function(){
+          const rowsAda2=rows.some(r=>r.nama&&r.nama.trim());
+          if(rowsAda2){ if(submitted){_summaryMap=buildSummaryMap();renderSummary();}else renderRekapPraHitung(); }
+          else renderRekapPraHitung();
+        }, 2000);
+      } else {
+        renderRekapPraHitung();
+      }
+    }
+  }
 }
 
 // toggleImport label sudah ditangani langsung di fungsi utama
@@ -16146,15 +16654,14 @@ function doSyncFromST(){
 
     <div style="display:flex;gap:8px;margin-bottom:14px">
       <button class="pr-tab active" id="tab-input" onclick="switchTab('input')" style="padding:13px 20px;font-size:15px">✏️ Input Data</button>
-      <button class="pr-tab" id="tab-kalender" onclick="switchTab('kalender')" style="padding:13px 20px;font-size:15px">📅 Kalender</button>
       <button class="pr-tab" id="tab-rekap" onclick="switchTab('rekap')" style="padding:13px 20px;font-size:15px">📊 Rekap</button>
+      <button class="pr-tab" id="tab-kalender" onclick="switchTab('kalender')" style="padding:13px 20px;font-size:15px">📅 Kalender</button>
     </div>
 
     <div id="panel-input">
       <div class="card">
         <div class="card-header" style="padding:12px 20px;justify-content:space-between">
           <h3 style="font-size:13px">📋 Data Presensi — <span id="periodeLabel" style="color:var(--teal)"></span></h3>
-          <button onclick="addRow()" class="btn btn-outline btn-sm">+ Baris</button>
         </div>
         <div class="card-body" style="padding:12px 20px">
           <div style="display:grid;grid-template-columns:1.7fr 130px 110px 110px 88px 28px;gap:6px;margin-bottom:4px;padding:0 8px">
@@ -16166,8 +16673,8 @@ function doSyncFromST(){
             <span></span>
           </div>
           <div id="rowsContainer"></div>
-          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
-            <button onclick="hitungSekarang()" class="btn btn-primary" style="flex:1;min-width:140px">▶ Hitung Sekarang</button>
+          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+            <button onclick="addRow()" class="btn btn-outline btn-sm" style="border-color:var(--teal);color:var(--teal);font-weight:600">+ Tambah Baris</button>
             <button onclick="resetAll()" class="btn btn-ghost" style="color:var(--muted)">Reset</button>
           </div>
         </div>
@@ -16182,10 +16689,13 @@ function doSyncFromST(){
     </div>
 
     <div id="panel-rekap" style="display:none">
+      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <button id="btnHitung" onclick="hitungSekarang()" class="btn btn-primary" style="flex:1;min-width:160px;font-size:13px;padding:10px 16px">▶ Hitung Sekarang</button>
+      </div>
       <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:14px" id="summaryGrid"></div>
       <div class="card">
         <div class="card-header" style="padding:12px 20px;flex-wrap:wrap;gap:8px">
-          <h3 style="font-size:13px;flex:1">📊 Rekap Presensi — <span id="rekapPeriode" style="color:var(--teal)"></span></h3>
+          <h3 style="font-size:13px;flex:1"><span id="rekapJudulPrefix">📋 Pra Rekap Presensi</span> — <span id="rekapPeriode" style="color:var(--teal)"></span></h3>
           <input id="rekapSearch" type="text" placeholder="🔍 Cari nama..." oninput="filterRekapNama(this.value)" style="border:1.5px solid var(--line);border-radius:6px;padding:5px 10px;font-size:12px;outline:none;width:180px;transition:border-color .2s" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--line)'">
         </div>
         <div style="overflow-x:auto;overflow-y:auto;max-height:70vh">
