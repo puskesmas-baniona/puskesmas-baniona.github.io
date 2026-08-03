@@ -1041,6 +1041,7 @@ let db = {
 const DB_KEY='st_app_db_v2';
 let _saveTimer=null;
 let _lastSavedSnapshot=null;
+let _lastSavedAt=null;
 
 function saveDB(){
   // Jangan simpan saat sedang restore backup (mencegah data default menimpa backup)
@@ -1074,7 +1075,9 @@ function saveDB(){
                        (_dbObj.jenisKegiatan&&_dbObj.jenisKegiatan.length>0)||
                        (_dbObj.pegawai&&_dbObj.pegawai.length>2);
       if(window._FB_DOC && _adaKonten){
-        window._FB_DOC.set({ data: snapshot, updatedAt: new Date().toISOString() })
+        const _nowAt=new Date().toISOString();
+        _lastSavedAt=_nowAt;
+        window._FB_DOC.set({ data: snapshot, updatedAt: _nowAt })
           .then(()=>{
             console.log('[Firebase] Data tersimpan ke Firestore ✅');
             if(ind){
@@ -1142,6 +1145,7 @@ function loadDB(){
             // Update localStorage sebagai cache offline
             localStorage.setItem(DB_KEY, JSON.stringify(db));
             _lastSavedSnapshot=JSON.stringify(db);
+            _lastSavedAt=docSnap.data().updatedAt||null;
             console.log('[Firebase] Data dimuat dari Firestore ✅');
             // Render ulang UI jika sudah tampil
             try{ if(typeof renderAll==='function') renderAll(); }catch(e){}
@@ -1270,11 +1274,11 @@ loadDB();
     if(_isFirstSnapshot){ _isFirstSnapshot=false; return; }
     if(!docSnap.exists) return;
     try{
+      const incomingAt=docSnap.data().updatedAt||null;
+      // Lewati jika ini adalah snapshot dari simpanan kita sendiri (cek updatedAt)
+      if(incomingAt && incomingAt===_lastSavedAt) return;
       const parsed=JSON.parse(docSnap.data().data);
       if(!parsed || !Array.isArray(parsed.pegawai)) return;
-      const incomingSnap=JSON.stringify(parsed);
-      // Hanya update jika data dari Firestore berbeda dengan yang ada sekarang
-      if(incomingSnap===_lastSavedSnapshot) return;
       // Guard: jangan timpa db lokal kalau data Firestore lebih kosong
       const _inKonten=(parsed.jadwal&&parsed.jadwal.length>0)||
                       (parsed.suratTugas&&parsed.suratTugas.length>0)||
@@ -1291,6 +1295,7 @@ loadDB();
       db=_applyMigrasi(parsed);
       localStorage.setItem(DB_KEY, JSON.stringify(db));
       _lastSavedSnapshot=JSON.stringify(db);
+      _lastSavedAt=incomingAt;
       console.log('[Firebase] Data diperbarui dari perangkat lain 🔄');
       // Tampilkan notifikasi ke user
       const ind=document.getElementById('save-indicator');
@@ -1335,7 +1340,9 @@ loadDB();
       localStorage.setItem(DB_KEY, snapshot);
       // Simpan ke Firestore saat halaman ditutup/disembunyikan
       if(window._FB_DOC && snapshot!==_lastSavedSnapshot){
-        window._FB_DOC.set({ data: snapshot, updatedAt: new Date().toISOString() })
+        const _flushAt=new Date().toISOString();
+        _lastSavedAt=_flushAt;
+        window._FB_DOC.set({ data: snapshot, updatedAt: _flushAt })
           .catch(e=>console.error('[Firebase] flushSave gagal:', e));
         _lastSavedSnapshot=snapshot;
       }
