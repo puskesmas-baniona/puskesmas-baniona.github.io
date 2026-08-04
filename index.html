@@ -11633,8 +11633,12 @@ function loadPresensiDB(bulan, tahun){
         const fbSaved=fbData.savedAt||"";
         // Baca localStorage FRESH saat callback tiba — hindari race condition
         const freshLocalRaw=localStorage.getItem(key);
-        const freshLocalSaved=freshLocalRaw?(JSON.parse(freshLocalRaw).savedAt||""):"";
-        if(fbSaved > freshLocalSaved){
+        let freshLocalSaved="";
+        try{ freshLocalSaved=freshLocalRaw?(JSON.parse(freshLocalRaw).savedAt||""):""; }catch(e){}
+        // Kalau lokal tidak punya savedAt → Firestore selalu menang
+        // Kalau fbSaved lebih baru → Firestore menang
+        const _firestoreMenang = !freshLocalSaved || (fbSaved > freshLocalSaved);
+        if(_firestoreMenang && fbSaved){
           console.log('[Firebase] Presensi lebih baru di Firestore — diterapkan ✅');
           // Simpan state sesi saat ini sebelum di-overwrite
           const _ketSebelumnya = Object.assign({}, keteranganTH);
@@ -11702,8 +11706,10 @@ function _startPresensiRealtimeSync(bulan, tahun){
       if(fbSaved === _prLastApplied) return;
       const key = getDbKey(bulan, tahun);
       const freshLocalRaw = localStorage.getItem(key);
-      const freshLocalSaved = freshLocalRaw ? (JSON.parse(freshLocalRaw).savedAt||"") : "";
-      if(fbSaved <= freshLocalSaved) return; // lokal sudah lebih baru atau sama
+      let freshLocalSaved = "";
+      try{ freshLocalSaved = freshLocalRaw ? (JSON.parse(freshLocalRaw).savedAt||"") : ""; }catch(e){}
+      // Kalau lokal tidak punya savedAt → Firestore menang; kalau lokal lebih baru → skip
+      if(freshLocalSaved && fbSaved <= freshLocalSaved) return; // lokal sudah lebih baru atau sama
       console.log('[Firebase] Real-time: data lebih baru dari perangkat lain — diterapkan ✅');
       _prLastApplied = fbSaved;
       // Simpan state keterangan sesi ini agar tidak hilang
