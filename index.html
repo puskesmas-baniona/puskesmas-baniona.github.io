@@ -11702,15 +11702,18 @@ function _startPresensiRealtimeSync(bulan, tahun){
     try{
       const fbData = JSON.parse(snap.data().data);
       const fbSaved = fbData.savedAt || "";
-      // Abaikan jika ini update dari perangkat kita sendiri atau sudah diapply
-      if(fbSaved === _prLastApplied) return;
       const key = getDbKey(bulan, tahun);
       const freshLocalRaw = localStorage.getItem(key);
       let freshLocalSaved = "";
       try{ freshLocalSaved = freshLocalRaw ? (JSON.parse(freshLocalRaw).savedAt||"") : ""; }catch(e){}
-      // Kalau lokal tidak punya savedAt → Firestore menang; kalau lokal lebih baru → skip
-      if(freshLocalSaved && fbSaved <= freshLocalSaved) return; // lokal sudah lebih baru atau sama
-      console.log('[Firebase] Real-time: data lebih baru dari perangkat lain — diterapkan ✅');
+      // Skip hanya jika: (1) data ini sudah pernah kita apply sebelumnya DAN
+      //                  (2) tidak ada data lebih baru di Firestore dari perangkat lain
+      // fbSaved <= freshLocalSaved → lokal sudah sama atau lebih baru → skip
+      if(freshLocalSaved && fbSaved <= freshLocalSaved) return;
+      // fbSaved === _prLastApplied → sudah pernah diapply, tidak ada perubahan baru → skip
+      if(fbSaved && fbSaved === _prLastApplied) return;
+      if(!fbSaved) return; // tidak ada timestamp → abaikan
+      console.log('[Firebase] Real-time: data lebih baru dari perangkat lain — diterapkan ✅', fbSaved);
       _prLastApplied = fbSaved;
       // Simpan state keterangan sesi ini agar tidak hilang
       const _ketSebelumnya = Object.assign({}, keteranganTH);
@@ -11727,7 +11730,11 @@ function _startPresensiRealtimeSync(bulan, tahun){
         const adaDiFb = rows.some(function(r){return r.nama===rSesi.nama && r.tanggal===rSesi.tanggal;});
         if(!adaDiFb && (rSesi.jamMasuk||rSesi.jamPulang)) rows.push(rSesi);
       });
-      localStorage.setItem(key, JSON.stringify(fbData));
+      // Simpan mergedData (bukan fbData mentah) agar freshLocalSaved akurat
+      const _mergedSnap = Object.assign({}, fbData, {
+        rows: rows, keteranganTH: keteranganTH
+      });
+      localStorage.setItem(key, JSON.stringify(_mergedSnap));
       // Re-render UI
       try{
         onSettingChange();
