@@ -11591,6 +11591,7 @@ function savePresensiDB(){
     // Sync ke Firestore
     const fbDoc=_getPresensiFirestoreDoc();
     if(fbDoc){
+      _prOwnSave = data.savedAt; // tandai sebagai save milik kita sendiri
       fbDoc.set({ data: JSON.stringify(data), updatedAt: data.savedAt })
         .then(()=>{
           console.log('[Firebase] Presensi tersimpan ke Firestore ✅');
@@ -11598,6 +11599,7 @@ function savePresensiDB(){
         })
         .catch(err=>{
           console.warn('[Firebase] Gagal simpan presensi ke Firestore:', err);
+          _prOwnSave = ""; // reset agar tidak dianggap own save
           if(typeof _showCloudError==='function') _showCloudError();
         });
     }
@@ -11669,16 +11671,20 @@ function loadPresensiDB(bulan, tahun){
           localStorage.setItem(key, JSON.stringify(_mergedData));
           // Simpan merged data ke Firestore agar savedAt terbaru (cegah race condition berikutnya)
           fbDoc.set({ data: JSON.stringify(_mergedData), updatedAt: _mergedData.savedAt }).catch(function(){});
-          // Re-render UI
-          onSettingChange();
+          // Re-render UI — TANPA autoSave agar tidak loop
+          invalidateRowCache();
+          const _p2=getPeriodeStr();
+          ['bulanLabel','periodeLabel','kalPeriode','rekapPeriode'].forEach(function(id){const el=document.getElementById(id);if(el)el.textContent=_p2;});
+          const _eff2=document.getElementById('effBox'); if(_eff2)_eff2.textContent=fmtLong(getEffMins());
+          const _hk2=document.getElementById('hkBox'); if(_hk2)_hk2.textContent=getHariKerja().length+' hari';
           renderTglMerah(); renderTglCuti(); renderRows();
           if(submitted){ _summaryMap=buildSummaryMap(); renderSummary(); renderKalender(); }
           else {
-            // Cek apakah tab rekap sedang terbuka — re-render pra-rekap
             const rekapTab=document.getElementById('tab-rekap');
             if(rekapTab&&rekapTab.classList.contains('active')) renderRekapPraHitung();
           }
           renderKirimStatus();
+          _updateBtnHitung();
           _prNotif("info","☁️ Data diperbarui dari Cloud","Data presensi disinkronkan dari perangkat lain.");
         }
       }catch(e){ console.warn('[Firebase] Gagal parse presensi dari Firestore:', e); }
@@ -11698,6 +11704,7 @@ function loadPresensiDB(bulan, tahun){
 // Dipanggil setiap kali bulan/tahun berganti (dari onSettingChange / renderPresensiPanel)
 let _prRealtimeUnsub = null; // simpan fungsi unsubscribe listener sebelumnya
 let _prLastApplied   = "";   // savedAt terakhir yang sudah diapply, cegah loop
+let _prOwnSave = "";           // savedAt dari save kita sendiri, agar onSnapshot tidak loop
 function _startPresensiRealtimeSync(bulan, tahun){
   // Hentikan listener bulan sebelumnya jika ada
   if(typeof _prRealtimeUnsub === 'function'){
@@ -11722,6 +11729,7 @@ function _startPresensiRealtimeSync(bulan, tahun){
       // fbSaved === _prLastApplied → sudah pernah diapply, tidak ada perubahan baru → skip
       if(fbSaved && fbSaved === _prLastApplied) return;
       if(!fbSaved) return; // tidak ada timestamp → abaikan
+      if(fbSaved === _prOwnSave) return; // ini save dari perangkat kita sendiri → abaikan
       console.log('[Firebase] Real-time: data lebih baru dari perangkat lain — diterapkan ✅', fbSaved);
       _prLastApplied = fbSaved;
       // Simpan state keterangan sesi ini agar tidak hilang
@@ -11744,9 +11752,13 @@ function _startPresensiRealtimeSync(bulan, tahun){
         rows: rows, keteranganTH: keteranganTH
       });
       localStorage.setItem(key, JSON.stringify(_mergedSnap));
-      // Re-render UI
+      // Re-render UI — TANPA autoSave agar tidak loop
       try{
-        onSettingChange();
+        invalidateRowCache();
+        const _p=getPeriodeStr();
+        ['bulanLabel','periodeLabel','kalPeriode','rekapPeriode'].forEach(function(id){const el=document.getElementById(id);if(el)el.textContent=_p;});
+        const _effEl=document.getElementById('effBox'); if(_effEl)_effEl.textContent=fmtLong(getEffMins());
+        const _hkEl=document.getElementById('hkBox'); if(_hkEl)_hkEl.textContent=getHariKerja().length+' hari';
         renderTglMerah(); renderTglCuti(); renderRows();
         if(submitted){ _summaryMap=buildSummaryMap(); renderSummary(); renderKalender(); }
         else{
@@ -11754,6 +11766,7 @@ function _startPresensiRealtimeSync(bulan, tahun){
           if(rekapTab&&rekapTab.classList.contains('active')) renderRekapPraHitung();
         }
         renderKirimStatus();
+        _updateBtnHitung();
       }catch(e){ console.warn('[Realtime] Gagal re-render:', e); }
       _prNotif("info","☁️ Data diperbarui dari Cloud","Data presensi disinkronkan dari perangkat lain secara otomatis.");
     }catch(e){ console.warn('[Firebase] Gagal parse real-time presensi:', e); }
