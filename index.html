@@ -11121,7 +11121,8 @@ function tglSehari(d){
       <div style="flex:1"></div>
       <button onclick="modalNavPrev()" id="btnNavPrev" style="background:#F0F4FF;color:#3B5BDB;border:none;border-radius:10px;padding:9px 16px;font-weight:700;font-size:13px;cursor:pointer;display:none">◀ Prev</button>
       <button onclick="modalNavNext()" id="btnNavNext" style="background:#3B5BDB;color:white;border:none;border-radius:10px;padding:9px 16px;font-weight:700;font-size:13px;cursor:pointer;display:none">Next ▶</button>
-      <button onclick="closeModalKet()" id="btnNavSelesai" style="background:#059669;color:white;border:none;border-radius:10px;padding:9px 20px;font-weight:700;font-size:13px;cursor:pointer">Selesai</button>
+      <button onclick="simpanModalKet()" id="btnSimpanKet" style="background:#2563EB;color:white;border:none;border-radius:10px;padding:9px 20px;font-weight:700;font-size:13px;cursor:pointer;display:none">💾 Simpan</button>
+      <button onclick="closeModalKet()" id="btnNavSelesai" style="background:#059669;color:white;border:none;border-radius:10px;padding:9px 20px;font-weight:700;font-size:13px;cursor:pointer">✅ Selesai</button>
     </div>
   </div>
 </div>
@@ -11188,6 +11189,9 @@ function _showModalAt(idx){
   document.getElementById("btnNavPrev").style.display=hasQueue?"inline-block":"none";
   document.getElementById("btnNavNext").style.display=hasQueue&&idx<_modalQueue.length-1?"inline-block":"none";
   document.getElementById("btnNavSelesai").textContent=(!hasQueue||idx===_modalQueue.length-1)?"✅ Selesai":"Lewati ▶";
+  // Tombol Simpan: tampil saat single tanggal (tidak pakai Next/Prev) dan ada pilihan aktif
+  const btnSimpanKet=document.getElementById("btnSimpanKet");
+  btnSimpanKet.style.display=(!hasQueue&&current)?"inline-block":"none";
   if(hasQueue){
     const belumDiisi=_modalQueue.filter(q=>!keteranganTH[ketKey(q.nama,q.ds)]).length;
     const labelBelum=belumDiisi>0?` · <span style="color:#DC2626;font-weight:700">⚠ ${belumDiisi} belum diisi</span>`:"";
@@ -11252,14 +11256,17 @@ function _showModalAt(idx){
     const lainnyaOnclick = disabled ? "" : isLainnya ? (active ? "document.getElementById('lainnyaInputBox').style.display='block'" : "toggleLainnyaInput()") : "setKetTH('"+k.val+"')";
     return`<button onclick="${lainnyaOnclick}" style="
       display:flex;align-items:center;gap:10px;padding:13px 14px;border-radius:12px;cursor:${disabled?"not-allowed":"pointer"};
-      border:2px solid ${active?k.color:k.border};
+      border:2.5px solid ${active?k.color:k.border};
       background:${active?k.bg:disabled?"#F5F5F5":"white"};
       color:${active?k.color:disabled?"#AAAAAA":"#475068"};
       font-weight:${active?800:600};font-size:13px;
-      transition:all .15s;text-align:left;width:100%;opacity:${disabled?0.5:1}">
+      transition:all .15s;text-align:left;width:100%;opacity:${disabled?0.5:1};
+      box-shadow:${active?`0 0 0 3px ${k.color}33`:"none"};
+      transform:${active?"scale(1.01)":"scale(1)"}"
+    >
       <span style="font-size:20px">${k.icon}</span>
-      <span>${k.label}${disabled?" (kuota habis)":""}</span>
-      ${active?'<span style="margin-left:auto;font-size:16px">✓</span>':""}
+      <span style="flex:1">${k.label}${disabled?" (kuota habis)":""}</span>
+      ${active?`<span style="background:${k.color};color:white;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;flex-shrink:0">✓</span>`:""}
     </button>
     ${isLainnya?`<div id="lainnyaInputBox" style="display:${active?"block":"none"};margin-top:6px;padding:12px;background:#F8FAFC;border:1px solid #CBD5E1;border-radius:10px">
       <div id="lainnyaInputBoxInner"></div>
@@ -11337,6 +11344,14 @@ function _renderLainnyaBox(teks, status){
   actionRow.appendChild(btnSimpan);
   actionRow.appendChild(btnBatal);
   box.appendChild(actionRow);
+}
+
+function simpanModalKet(){
+  // Tombol Simpan: tutup modal, data sudah auto-tersimpan saat klik opsi
+  savePresensiDB();
+  _summaryMap=buildSummaryMap();
+  showToast('Keterangan tersimpan ✓','success');
+  closeModalKet();
 }
 
 function setKetTH(val){
@@ -11617,7 +11632,7 @@ function _applyPresensiData(data){
   if(data.keteranganTH) keteranganTH=data.keteranganTH;
   if(data.ambilLiburUsed) ambilLiburUsed=data.ambilLiburUsed;
   if(data.kuotaManual) kuotaManual=data.kuotaManual;
-  if(data.submitted) submitted=data.submitted;
+  if(typeof data.submitted !== 'undefined') submitted=data.submitted; else submitted=false;
   published=!!data.published;
 }
 
@@ -11641,6 +11656,11 @@ function loadPresensiDB(bulan, tahun){
       if(!snap.exists) return;
       try{
         const fbData=JSON.parse(snap.data().data);
+        // Penanda hapus → pastikan localStorage lokal juga bersih
+        if(fbData.deleted){
+          localStorage.removeItem(key);
+          return;
+        }
         const fbSaved=fbData.savedAt||"";
         // Baca localStorage FRESH saat callback tiba — hindari race condition
         const freshLocalRaw=localStorage.getItem(key);
@@ -11659,18 +11679,19 @@ function loadPresensiDB(bulan, tahun){
           submitted=false; published=false; keteranganTH={}; ambilLiburUsed={}; kuotaManual={};
           tanggalMerah={}; tanggalCuti={};
           _applyPresensiData(fbData);
-          // Merge keterangan sesi ini ke fbData agar tidak hilang
-          Object.assign(keteranganTH, _ketSebelumnya);
+          // Merge keterangan sesi ini ke fbData: hanya tambah key yang tidak ada di fbData
+          Object.keys(_ketSebelumnya).forEach(function(k){
+            if(!(k in keteranganTH)) keteranganTH[k]=_ketSebelumnya[k];
+          });
           // Merge rows sesi ini: tambahkan baris sesi yang punya presensi tapi tidak ada di fbData
           _rowsSebelumnya.forEach(function(rSesi){
             if(!rSesi.nama||!rSesi.tanggal) return;
             const adaDiFb = rows.some(function(r){return r.nama===rSesi.nama && r.tanggal===rSesi.tanggal;});
             if(!adaDiFb && (rSesi.jamMasuk||rSesi.jamPulang)) rows.push(rSesi);
           });
-          const _mergedData = Object.assign({}, fbData, {keteranganTH: keteranganTH, rows: rows, savedAt: new Date().toISOString()});
+          // Simpan ke localStorage saja — TIDAK re-save ke Firestore agar tidak trigger onSnapshot perangkat lain
+          const _mergedData = Object.assign({}, fbData, {keteranganTH: keteranganTH, rows: rows});
           localStorage.setItem(key, JSON.stringify(_mergedData));
-          // Simpan merged data ke Firestore agar savedAt terbaru (cegah race condition berikutnya)
-          fbDoc.set({ data: JSON.stringify(_mergedData), updatedAt: _mergedData.savedAt }).catch(function(){});
           // Re-render UI — TANPA autoSave agar tidak loop
           invalidateRowCache();
           const _p2=getPeriodeStr();
@@ -11717,6 +11738,22 @@ function _startPresensiRealtimeSync(bulan, tahun){
     if(!snap.exists) return;
     try{
       const fbData = JSON.parse(snap.data().data);
+      // Penanda hapus dari perangkat lain → reset state lokal
+      if(fbData.deleted){
+        const _delSaved=fbData.savedAt||"";
+        if(_delSaved && _delSaved!==_prOwnSave){
+          const _delKey=getDbKey(bulan,tahun);
+          localStorage.removeItem(_delKey);
+          rows=[{nama:"",tanggal:"",jamMasuk:"",jamPulang:""}];
+          submitted=false;published=false;keteranganTH={};ambilLiburUsed={};kuotaManual={};
+          tanggalMerah={};tanggalCuti={};_summaryMap={};
+          invalidateRowCache();
+          renderTglMerah();renderTglCuti();renderRows();renderRekapPraHitung();renderKalender();
+          renderKirimStatus();switchTab("input");
+          _prNotif("info","🗑 Data Dihapus","Data bulan ini telah dihapus dari perangkat lain.");
+        }
+        return;
+      }
       const fbSaved = fbData.savedAt || "";
       const key = getDbKey(bulan, tahun);
       const freshLocalRaw = localStorage.getItem(key);
@@ -11740,8 +11777,10 @@ function _startPresensiRealtimeSync(bulan, tahun){
       submitted=false; published=false; keteranganTH={}; ambilLiburUsed={}; kuotaManual={};
       tanggalMerah={}; tanggalCuti={};
       _applyPresensiData(fbData);
-      // Merge keterangan & baris sesi lokal agar tidak hilang
-      Object.assign(keteranganTH, _ketSebelumnya);
+      // Merge keterangan & baris sesi lokal: hanya tambah key yang tidak ada di fbData
+      Object.keys(_ketSebelumnya).forEach(function(k){
+        if(!(k in keteranganTH)) keteranganTH[k]=_ketSebelumnya[k];
+      });
       _rowsSebelumnya.forEach(function(rSesi){
         if(!rSesi.nama||!rSesi.tanggal) return;
         const adaDiFb = rows.some(function(r){return r.nama===rSesi.nama && r.tanggal===rSesi.tanggal;});
@@ -11813,9 +11852,15 @@ function clearDB(){
   if(!confirm("Hapus semua data tersimpan bulan ini? Tindakan ini tidak bisa dibatalkan.")) return;
   const key=getDbKey();
   localStorage.removeItem(key);
-  // Hapus juga dari Firestore
+  // Tulis penanda hapus ke Firestore agar perangkat lain ikut reset
   const fbDoc=_getPresensiFirestoreDoc();
-  if(fbDoc) fbDoc.delete().then(()=>console.log('[Firebase] Presensi bulan ini dihapus dari Firestore ✅')).catch(()=>{});
+  if(fbDoc){
+    const _deletedAt=new Date().toISOString();
+    _prOwnSave=_deletedAt;
+    fbDoc.set({data:JSON.stringify({deleted:true,savedAt:_deletedAt}),updatedAt:_deletedAt})
+      .then(()=>console.log('[Firebase] Penanda hapus presensi dikirim ke Firestore ✅'))
+      .catch(()=>{});
+  }
   rows=[{nama:"",tanggal:"",jamMasuk:"",jamPulang:""}];
   submitted=false; published=false; _summaryMap={}; ambilLiburUsed={}; kuotaManual={};
   tanggalMerah={}; tanggalCuti={};
@@ -11870,6 +11915,7 @@ function onBulanChange(){
       _prLastApplied=""; // reset agar listener baru bisa apply
       _startPresensiRealtimeSync(newB, newT); // 🔄 mulai real-time sync bulan ini
 
+      _prSuppressAutoSave=true; // blok autoSave sampai Firestore selesai
       onSettingChange();
       renderTglMerah(); renderTglCuti(); renderRows();
       if(loaded && submitted){
@@ -11884,6 +11930,8 @@ function onBulanChange(){
       // Auto isi dari ST DINONAKTIFKAN — gunakan tombol "🔄 Sinkronisasi" secara manual
       renderKirimStatus();
       _prUnload();
+      // Lepas blok autoSave setelah Firestore pasti sudah selesai
+      setTimeout(()=>{ _prSuppressAutoSave=false; }, 3000);
     },30);
     return;
   }
@@ -12131,6 +12179,7 @@ function getHariKerja(){
   return result;
 }
 
+let _prSuppressAutoSave = false; // true saat init panel, agar onSettingChange tidak overwrite Firestore
 function onSettingChange(){
   invalidateRowCache();
   const p=getPeriodeStr();
@@ -12143,7 +12192,7 @@ function onSettingChange(){
   document.getElementById("footerInfo").textContent=
     `Presensi ${p} · ${document.getElementById("sJamMasuk").value}–${document.getElementById("sJamPulang").value} · Istirahat ${getIstirahat()}mnt · Efektif ${fmtLong(getEffMins())}/hari · ${getHariKerja().length} hari kerja`;
   renderRows();
-  autoSave();
+  if(!_prSuppressAutoSave) autoSave();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -12853,8 +12902,8 @@ function renderRekapPraHitung(){
         ${s.hariTidakHadir.map(ds=>{
           const ket=keteranganTH[ketKey(nama,ds)];
           const ki=ket?getKetInfo(ket):null;
-          const queueStr=JSON.stringify(s.hariTidakHadir.map(d=>({nama,ds:d}))).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-          return`<button onclick="openModalKet('${esc(nama)}','${ds}',${queueStr})" style="
+          const singleQ=JSON.stringify([{nama,ds}]).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+          return`<button onclick="openModalKet('${esc(nama)}','${ds}',${singleQ})" style="
             display:flex;align-items:center;justify-content:space-between;gap:6px;
             background:${ki?ki.bg:'#F8FAFF'};border:1px solid ${ki?ki.border:'#E2E8F0'};
             border-radius:8px;padding:5px 8px;cursor:pointer;width:100%;text-align:left">
@@ -12922,8 +12971,7 @@ function renderRekapPraHitung(){
         ${(()=>{
           const dinasHadir=s.hariHadirList.filter(ds=>{const k=keteranganTH[ketKey(nama,ds)];return k==='dinas'||k==='ukm';});
           if(!dinasHadir.length)return '';
-          const dinasQueueStr=JSON.stringify(dinasHadir.map(d=>({nama,ds:d}))).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-          const dinasHtml=dinasHadir.map(ds=>{const k=keteranganTH[ketKey(nama,ds)];const ki=getKetInfo(k);return`<button onclick="openModalKet('${esc(nama)}','${ds}',${dinasQueueStr})" style="display:flex;align-items:center;justify-content:space-between;gap:6px;background:${ki.bg};border:1px solid ${ki.border};border-radius:8px;padding:5px 8px;cursor:pointer;width:100%;text-align:left"><span style="font-size:11px;color:#475068;font-weight:500">${esc(fmtTglShort(ds))}</span><span style="font-size:10px;font-weight:700;color:${ki.color};white-space:nowrap">${ki.icon} ${ki.label}</span></button>`;}).join('');
+          const dinasHtml=dinasHadir.map(ds=>{const k=keteranganTH[ketKey(nama,ds)];const ki=getKetInfo(k);const singleQ=JSON.stringify([{nama,ds}]).replace(/"/g,'&quot;').replace(/'/g,'&#39;');return`<button onclick="openModalKet('${esc(nama)}','${ds}',${singleQ})" style="display:flex;align-items:center;justify-content:space-between;gap:6px;background:${ki.bg};border:1px solid ${ki.border};border-radius:8px;padding:5px 8px;cursor:pointer;width:100%;text-align:left"><span style="font-size:11px;color:#475068;font-weight:500">${esc(fmtTglShort(ds))}</span><span style="font-size:10px;font-weight:700;color:${ki.color};white-space:nowrap">${ki.icon} ${ki.label}</span></button>`;}).join('');
           return`<div style="margin-top:12px;padding-top:12px;border-top:1px solid #EEF2FF"><div style="font-weight:700;color:#14532d;margin-bottom:6px;font-size:11px">✈️ Perjalanan Dinas (hadir presensi) — ${dinasHadir.length} hari</div><div style="display:flex;flex-direction:column;gap:3px">${dinasHtml}</div></div>`;
         })()}
         ${(()=>{
@@ -12932,11 +12980,10 @@ function renderRekapPraHitung(){
             ...s.hariTidakHadir.filter(ds=>{const k=keteranganTH[ketKey(nama,ds)];return k==='hadir'||(k&&k.startsWith('lainnya-hadir:'));})
           ].sort();
           if(!hadirManualList.length)return '';
-          const qStr=JSON.stringify(hadirManualList.map(d=>({nama,ds:d}))).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
           const html=hadirManualList.map(ds=>{
             const k=keteranganTH[ketKey(nama,ds)];
             const ki=getKetInfo(k)||{bg:'#ECFDF5',border:'#6EE7B7',color:'#059669',icon:'✅',label:'Hadir'};
-            return`<button onclick="openModalKet('${esc(nama)}','${ds}',${qStr})" style="display:flex;align-items:center;justify-content:space-between;gap:6px;background:${ki.bg};border:1px solid ${ki.border};border-radius:8px;padding:5px 8px;cursor:pointer;width:100%;text-align:left"><span style="font-size:11px;color:#475068;font-weight:500">${esc(fmtTglShort(ds))}</span><span style="font-size:10px;font-weight:700;color:${ki.color};white-space:nowrap">${ki.icon} ${ki.label}</span></button>`;
+            return`<button onclick="openModalKet('${esc(nama)}','${ds}',${JSON.stringify([{nama,ds}]).replace(/"/g,'&quot;').replace(/'/g,'&#39;')})" style="display:flex;align-items:center;justify-content:space-between;gap:6px;background:${ki.bg};border:1px solid ${ki.border};border-radius:8px;padding:5px 8px;cursor:pointer;width:100%;text-align:left"><span style="font-size:11px;color:#475068;font-weight:500">${esc(fmtTglShort(ds))}</span><span style="font-size:10px;font-weight:700;color:${ki.color};white-space:nowrap">${ki.icon} ${ki.label}</span></button>`;
           }).join('');
           return`<div style="margin-top:12px;padding-top:12px;border-top:1px solid #EEF2FF"><div style="font-weight:700;color:#059669;margin-bottom:6px;font-size:11px">✅ Hadir Tanpa Presensi — ${hadirManualList.length} hari</div><div style="display:flex;flex-direction:column;gap:3px">${html}</div></div>`;
         })()}
@@ -13102,8 +13149,8 @@ function renderSummary(){
         ${s.hariTidakHadir.map(ds=>{
           const ket=keteranganTH[ketKey(nama,ds)];
           const ki=ket?getKetInfo(ket):null;
-          const queueStr=JSON.stringify(s.hariTidakHadir.map(d=>({nama,ds:d}))).replace(/"/g,"&quot;").replace(/'/g,"&#39;");
-          return`<button onclick="openModalKet('${esc(nama)}','${ds}',${queueStr})" style="
+          const singleQ=JSON.stringify([{nama,ds}]).replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+          return`<button onclick="openModalKet('${esc(nama)}','${ds}',${singleQ})" style="
             display:flex;align-items:center;justify-content:space-between;gap:6px;
             background:${ki?ki.bg:"#F8FAFF"};border:1px solid ${ki?ki.border:"#E2E8F0"};
             border-radius:8px;padding:5px 8px;cursor:pointer;width:100%;text-align:left">
@@ -13162,8 +13209,7 @@ function renderSummary(){
         ${(()=>{
           const dinasHadir=s.hariHadirList.filter(ds=>{const k=keteranganTH[ketKey(nama,ds)];return k==="dinas"||k==="ukm";});
           if(!dinasHadir.length)return "";
-          const dinasQueueStr=JSON.stringify(dinasHadir.map(d=>({nama,ds:d}))).replace(/"/g,"&quot;").replace(/'/g,"&#39;");
-          const dinasHtml=dinasHadir.map(ds=>{const k=keteranganTH[ketKey(nama,ds)];const ki=getKetInfo(k);return`<button onclick="openModalKet('${esc(nama)}','${ds}',${dinasQueueStr})" style="display:flex;align-items:center;justify-content:space-between;gap:6px;background:${ki.bg};border:1px solid ${ki.border};border-radius:8px;padding:5px 8px;cursor:pointer;width:100%;text-align:left"><span style="font-size:11px;color:#475068;font-weight:500">${esc(fmtTglShort(ds))}</span><span style="font-size:10px;font-weight:700;color:${ki.color};white-space:nowrap">${ki.icon} ${ki.label}</span></button>`;}).join("");
+          const dinasHtml=dinasHadir.map(ds=>{const k=keteranganTH[ketKey(nama,ds)];const ki=getKetInfo(k);const singleQ=JSON.stringify([{nama,ds}]).replace(/"/g,'&quot;').replace(/'/g,'&#39;');return`<button onclick="openModalKet('${esc(nama)}','${ds}',${singleQ})" style="display:flex;align-items:center;justify-content:space-between;gap:6px;background:${ki.bg};border:1px solid ${ki.border};border-radius:8px;padding:5px 8px;cursor:pointer;width:100%;text-align:left"><span style="font-size:11px;color:#475068;font-weight:500">${esc(fmtTglShort(ds))}</span><span style="font-size:10px;font-weight:700;color:${ki.color};white-space:nowrap">${ki.icon} ${ki.label}</span></button>`;}).join("");
           return`<div style="margin-top:12px;padding-top:12px;border-top:1px solid #EEF2FF"><div style="font-weight:700;color:#14532d;margin-bottom:6px;font-size:11px">✈️ Perjalanan Dinas (hadir presensi) — ${dinasHadir.length} hari</div><div style="display:flex;flex-direction:column;gap:3px">${dinasHtml}</div></div>`;
         })()}
         ${(()=>{
@@ -13173,11 +13219,10 @@ function renderSummary(){
             ...s.hariTidakHadir.filter(ds=>{const k=keteranganTH[ketKey(nama,ds)];return k==="hadir"||(k&&k.startsWith("lainnya-hadir:"));})
           ].sort();
           if(!hadirManualList.length)return "";
-          const qStr=JSON.stringify(hadirManualList.map(d=>({nama,ds:d}))).replace(/"/g,"&quot;").replace(/'/g,"&#39;");
           const html=hadirManualList.map(ds=>{
             const k=keteranganTH[ketKey(nama,ds)];
             const ki=getKetInfo(k)||{bg:"#ECFDF5",border:"#6EE7B7",color:"#059669",icon:"✅",label:"Hadir"};
-            return`<button onclick="openModalKet('${esc(nama)}','${ds}',${qStr})" style="display:flex;align-items:center;justify-content:space-between;gap:6px;background:${ki.bg};border:1px solid ${ki.border};border-radius:8px;padding:5px 8px;cursor:pointer;width:100%;text-align:left"><span style="font-size:11px;color:#475068;font-weight:500">${esc(fmtTglShort(ds))}</span><span style="font-size:10px;font-weight:700;color:${ki.color};white-space:nowrap">${ki.icon} ${ki.label}</span></button>`;
+            const singleQ=JSON.stringify([{nama,ds}]).replace(/"/g,'&quot;').replace(/'/g,'&#39;');return`<button onclick="openModalKet('${esc(nama)}','${ds}',${singleQ})" style="display:flex;align-items:center;justify-content:space-between;gap:6px;background:${ki.bg};border:1px solid ${ki.border};border-radius:8px;padding:5px 8px;cursor:pointer;width:100%;text-align:left"><span style="font-size:11px;color:#475068;font-weight:500">${esc(fmtTglShort(ds))}</span><span style="font-size:10px;font-weight:700;color:${ki.color};white-space:nowrap">${ki.icon} ${ki.label}</span></button>`;
           }).join("");
           return`<div style="margin-top:12px;padding-top:12px;border-top:1px solid #EEF2FF"><div style="font-weight:700;color:#059669;margin-bottom:6px;font-size:11px">✅ Hadir Tanpa Presensi — ${hadirManualList.length} hari</div><div style="display:flex;flex-direction:column;gap:3px">${html}</div></div>`;
         })()}
@@ -16633,6 +16678,7 @@ function _initPresensiPanel(){
   document.getElementById('sTahun').value=now.getFullYear();
   _activeBulan=now.getMonth()+1;
   _activeTahun=now.getFullYear();
+  _prSuppressAutoSave=true; // blok semua autoSave sampai Firestore selesai
   const loaded=loadPresensiDB(_activeBulan,_activeTahun);
   if(loaded) terapkanNamaMap();
   _prLastApplied=""; // reset agar listener bisa apply pertama kali
@@ -16644,6 +16690,8 @@ function _initPresensiPanel(){
     updateBonusPool();renderSummary();renderKalender();
   }
   renderKirimStatus();
+  // Lepas blok autoSave setelah Firestore pasti sudah selesai
+  setTimeout(()=>{ _prSuppressAutoSave=false; }, 3000);
   // Auto isi dari ST DINONAKTIFKAN — sinkronisasi hanya dijalankan saat admin klik tombol "🔄 Sinkronisasi"
   // Tombol hapus data di topbar
   document.getElementById('topbar-actions').innerHTML=
@@ -16803,6 +16851,69 @@ function doSyncFromST(){
 
 
 
+// ── Batal Sinkronisasi dari Surat Tugas ──────────────────────────────────────
+// Hapus semua baris & keterangan yang sebelumnya ditambahkan oleh doSyncFromST
+function batalSinkronST(){
+  const bulan=parseInt(document.getElementById('sBulan')?.value)||new Date().getMonth()+1;
+  const tahun=parseInt(document.getElementById('sTahun')?.value)||new Date().getFullYear();
+  const raw=localStorage.getItem('st_app_db_v2');
+  if(!raw){showToast('Data Surat Tugas tidak ditemukan','error');return;}
+  let stData;try{stData=JSON.parse(raw);}catch(e){showToast('Gagal membaca Surat Tugas','error');return;}
+
+  // Bangun set key (nama||tanggal) yang berasal dari ST bulan ini
+  const pegMap={};(stData.pegawai||[]).forEach(p=>{pegMap[p.id]=p;});
+  const stKeys=new Set();
+  (stData.suratTugas||[]).forEach(st=>{
+    if(!st.tanggal)return;
+    let hari=1;if(st.lama){const m=st.lama.match(/^(\d+)/);if(m)hari=Math.min(parseInt(m[1])||1,30);}
+    const ids=[...(st.pegawaiIds||[]),...(st.pengikutIds||[])];
+    for(let i=0;i<hari;i++){
+      const dt=new Date(st.tanggal+'T00:00:00');dt.setDate(dt.getDate()+i);
+      const tgl=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+      const[y,m2]=tgl.split('-').map(Number);
+      if(m2!==bulan||y!==tahun)continue;
+      ids.forEach(pid=>{const peg=pegMap[pid];if(peg)stKeys.add(peg.nama+'||'+tgl);});
+    }
+  });
+
+  if(stKeys.size===0){showToast('Tidak ada data Surat Tugas untuk dibatalkan','success');return;}
+
+  let hapusBaris=0,hapusKet=0;
+
+  // 1. Hapus keterangan "dinas" yang berasal dari ST
+  stKeys.forEach(key=>{
+    if(keteranganTH[key]==='dinas'){delete keteranganTH[key];hapusKet++;}
+  });
+
+  // 2. Hapus baris yang HANYA berasal dari ST (tanpa jam masuk/pulang)
+  const rowsBefore=rows.length;
+  rows=rows.filter(r=>{
+    if(!r.nama||!r.tanggal)return true;
+    const key=r.nama+'||'+r.tanggal;
+    if(!stKeys.has(key))return true;           // bukan dari ST → pertahankan
+    if(r.jamMasuk||r.jamPulang)return true;    // ada jam diisi manual → pertahankan
+    hapusBaris++;
+    return false;
+  });
+
+  // Jika rows jadi kosong, kembalikan 1 baris kosong
+  if(rows.length===0)rows=[{nama:'',tanggal:'',jamMasuk:'',jamPulang:''}];
+
+  const el=document.getElementById('pr-sync-result');
+  if(hapusBaris>0||hapusKet>0){
+    submitted=false;
+    invalidateRowCache();
+    renderRows();
+    savePresensiDB();_summaryMap=buildSummaryMap();renderRekapPraHitung();renderKalender();
+    const msg=hapusBaris+' baris & '+hapusKet+' keterangan Dinas Luar dibatalkan';
+    showToast('↩️ '+msg,'success');
+    if(el)el.textContent=msg;
+  }else{
+    showToast('Tidak ada sinkronisasi sebelumnya yang bisa dibatalkan','success');
+    if(el)el.textContent='Tidak ada yang dibatalkan';
+  }
+}
+
 // Bangun HTML panel presensi secara dinamis
 (function(){
   const panel = document.getElementById('panel-presensi');
@@ -16882,6 +16993,7 @@ function doSyncFromST(){
           <div style="font-size:12px;color:#475068">Tambah baris &amp; isi otomatis keterangan <b>Dinas Luar</b> dari Surat Tugas bulan ini.</div>
         </div>
         <button onclick="doSyncFromST()" class="btn" style="background:#16a34a;color:white;border:none;white-space:nowrap;padding:11px 22px;font-size:14px">🔄 Sinkronisasi</button>
+        <button onclick="batalSinkronST()" class="btn btn-outline" style="white-space:nowrap;border-color:#dc2626;color:#dc2626;padding:11px 22px;font-size:14px" title="Hapus baris &amp; keterangan Dinas Luar yang ditambahkan dari Surat Tugas">↩️ Batal Sinkron</button>
         <button onclick="deteksiNamaAsing()" class="btn btn-outline" style="white-space:nowrap;border-color:#16a34a;color:#16a34a;padding:11px 22px;font-size:14px">🔗 Pemetaan Nama</button>
         <button onclick="editNamaMap()" class="btn btn-outline" style="white-space:nowrap;border-color:#1a6b6b;color:#1a6b6b;padding:11px 22px;font-size:14px">✏️ Edit Pemetaan</button>
         <span id="pr-sync-result" style="font-size:11px;color:#475068"></span>
@@ -16961,7 +17073,7 @@ function doSyncFromST(){
           <table class="rekap-table">
             <thead><tr>
               <th class="sticky-col1" style="min-width:32px;width:32px;font-size:10px">No</th><th class="sticky-col2" style="min-width:110px;max-width:110px;font-size:10px">Nama Pegawai</th><th style="font-size:10px">HK</th><th style="font-size:10px">H</th><th style="font-size:10px">TH</th>
-              <th style="font-size:10px" title="Alpa / Tanpa Keterangan">❌ Alpa</th>
+              <th style="font-size:10px" title="Tanpa Keterangan">❌ Tanpa Ket.</th>
               <th style="font-size:10px" title="Sakit">🏥 Sakit</th>
               <th style="font-size:10px" title="Ijin">📋 Ijin</th>
               <th style="font-size:10px" title="Cuti">🧳 Cuti</th>
