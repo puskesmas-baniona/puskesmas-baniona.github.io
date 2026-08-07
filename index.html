@@ -11756,52 +11756,19 @@ function _startPresensiRealtimeSync(bulan, tahun){
       }
       const fbSaved = fbData.savedAt || "";
       const key = getDbKey(bulan, tahun);
-      const freshLocalRaw = localStorage.getItem(key);
-      let freshLocalSaved = "";
-      try{ freshLocalSaved = freshLocalRaw ? (JSON.parse(freshLocalRaw).savedAt||"") : ""; }catch(e){}
-      // Penanda forceSync dari batal sinkron/batal hitung → paksa apply meski lokal lebih baru
-      const forceSyncAt = snap.data().forceSyncAt || "";
-      const isForceSync = forceSyncAt && forceSyncAt !== _prOwnSave;
-      if(isForceSync){
-        // Hapus localStorage agar tidak mengalahkan Firestore
-        localStorage.removeItem(key);
-        freshLocalSaved = "";
-        _prLastApplied = ""; // reset agar tidak diblokir cek _prLastApplied
-        console.log('[Firebase] forceSync diterima — lokal direset, apply data Firestore ✅');
-      }
-      // Skip hanya jika: (1) data ini sudah pernah kita apply sebelumnya DAN
-      //                  (2) tidak ada data lebih baru di Firestore dari perangkat lain
-      // fbSaved <= freshLocalSaved → lokal sudah sama atau lebih baru → skip
-      if(freshLocalSaved && fbSaved <= freshLocalSaved) return;
-      // fbSaved === _prLastApplied → sudah pernah diapply, tidak ada perubahan baru → skip
-      if(fbSaved && fbSaved === _prLastApplied) return;
-      if(!fbSaved) return; // tidak ada timestamp → abaikan
-      if(fbSaved === _prOwnSave) return; // ini save dari perangkat kita sendiri → abaikan
+      // Skip: save dari perangkat sendiri atau sudah pernah diapply
+      if(!fbSaved) return;
+      if(fbSaved === _prOwnSave) return;
+      if(fbSaved === _prLastApplied) return;
       console.log('[Firebase] Real-time: data lebih baru dari perangkat lain — diterapkan ✅', fbSaved);
       _prLastApplied = fbSaved;
-      // Simpan state keterangan sesi ini agar tidak hilang (kecuali forceSync — harus ikut Firestore penuh)
-      const _ketSebelumnya = isForceSync ? {} : Object.assign({}, keteranganTH);
-      const _rowsSebelumnya = isForceSync ? [] : rows.slice();
-      // Reset & apply
+      // Reset & apply langsung dari Firestore — tanpa merge lokal
       rows=[{nama:"",tanggal:"",jamMasuk:"",jamPulang:""}];
       submitted=false; published=false; keteranganTH={}; ambilLiburUsed={}; kuotaManual={};
       tanggalMerah={}; tanggalCuti={};
       _applyPresensiData(fbData);
-      // Merge keterangan & baris sesi lokal: hanya tambah key yang tidak ada di fbData
-      // (dilewati saat forceSync karena _ketSebelumnya & _rowsSebelumnya sengaja dikosongkan)
-      Object.keys(_ketSebelumnya).forEach(function(k){
-        if(!(k in keteranganTH)) keteranganTH[k]=_ketSebelumnya[k];
-      });
-      _rowsSebelumnya.forEach(function(rSesi){
-        if(!rSesi.nama||!rSesi.tanggal) return;
-        const adaDiFb = rows.some(function(r){return r.nama===rSesi.nama && r.tanggal===rSesi.tanggal;});
-        if(!adaDiFb && (rSesi.jamMasuk||rSesi.jamPulang)) rows.push(rSesi);
-      });
-      // Simpan mergedData (bukan fbData mentah) agar freshLocalSaved akurat
-      const _mergedSnap = Object.assign({}, fbData, {
-        rows: rows, keteranganTH: keteranganTH
-      });
-      localStorage.setItem(key, JSON.stringify(_mergedSnap));
+      // Simpan ke localStorage agar freshLocalSaved akurat
+      localStorage.setItem(key, JSON.stringify(fbData));
       // Re-render UI — TANPA autoSave agar tidak loop
       try{
         invalidateRowCache();
