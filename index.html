@@ -11589,7 +11589,7 @@ function _getPresensiFirestoreDoc(bulan, tahun){
 function savePresensiDB(){
   try{
     const data={
-      rows, submitted, published, tanggalMerah, tanggalCuti, keteranganTH, ambilLiburUsed, kuotaManual,
+      rows, submitted, published, tanggalMerah, tanggalCuti, keteranganTH, ambilLiburUsed, kuotaManual, stSynced: _stSynced,
       settings:{
         bulan: document.getElementById("sBulan").value,
         tahun: document.getElementById("sTahun").value,
@@ -11634,6 +11634,8 @@ function _applyPresensiData(data){
   if(data.kuotaManual) kuotaManual=data.kuotaManual;
   if(typeof data.submitted !== 'undefined') submitted=data.submitted; else submitted=false;
   published=!!data.published;
+  _stSynced = !!data.stSynced;
+  _setSinkronBtn(_stSynced);
 }
 
 function loadPresensiDB(bulan, tahun){
@@ -16770,6 +16772,7 @@ function _toggleSinkronST(){
 }
 
 function doSyncFromST(){
+  if(!confirm('Sinkronisasi data dari Surat Tugas?\n\nKeterangan \'Dinas\' akan diisi otomatis berdasarkan ST aktif bulan ini.')) return;
   const bulan=parseInt(document.getElementById('sBulan')?.value)||new Date().getMonth()+1;
   const tahun=parseInt(document.getElementById('sTahun')?.value)||new Date().getFullYear();
   const raw=localStorage.getItem('st_app_db_v2');
@@ -16829,6 +16832,7 @@ function doSyncFromST(){
 // ── Batal Sinkronisasi dari Surat Tugas ──────────────────────────────────────
 // Hapus semua baris & keterangan yang sebelumnya ditambahkan oleh doSyncFromST
 function batalSinkronST(){
+  if(!confirm('Yakin ingin membatalkan sinkronisasi?\n\nKeterangan \'Dinas\' yang diisi otomatis dari ST akan dihapus.')) return;
   const bulan=parseInt(document.getElementById('sBulan')?.value)||new Date().getMonth()+1;
   const tahun=parseInt(document.getElementById('sTahun')?.value)||new Date().getFullYear();
   const raw=localStorage.getItem('st_app_db_v2');
