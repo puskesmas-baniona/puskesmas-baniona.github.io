@@ -11589,7 +11589,7 @@ function _getPresensiFirestoreDoc(bulan, tahun){
 function savePresensiDB(){
   try{
     const data={
-      rows, submitted, published, tanggalMerah, tanggalCuti, keteranganTH, ambilLiburUsed, kuotaManual, stSynced: _stSynced,
+      rows, submitted, published, tanggalMerah, tanggalCuti, keteranganTH, ambilLiburUsed, kuotaManual,
       settings:{
         bulan: document.getElementById("sBulan").value,
         tahun: document.getElementById("sTahun").value,
@@ -11634,8 +11634,6 @@ function _applyPresensiData(data){
   if(data.kuotaManual) kuotaManual=data.kuotaManual;
   if(typeof data.submitted !== 'undefined') submitted=data.submitted; else submitted=false;
   published=!!data.published;
-  _stSynced = !!data.stSynced;
-  _setSinkronBtn(_stSynced);
 }
 
 function loadPresensiDB(bulan, tahun){
@@ -11686,7 +11684,6 @@ function loadPresensiDB(bulan, tahun){
           }
           renderKirimStatus();
           _updateBtnHitung();
-          _setSinkronBtn(_stSynced);
           _prNotif("info","☁️ Data diperbarui dari Cloud","Data presensi disinkronkan dari perangkat lain.");
         }
       }catch(e){ console.warn('[Firebase] Gagal parse presensi dari Firestore:', e); }
@@ -11748,6 +11745,7 @@ function _startPresensiRealtimeSync(bulan, tahun){
       submitted=false; published=false; keteranganTH={}; ambilLiburUsed={}; kuotaManual={};
       tanggalMerah={}; tanggalCuti={};
       _applyPresensiData(fbData);
+      // Simpan ke localStorage agar freshLocalSaved akurat
       localStorage.setItem(key, JSON.stringify(fbData));
       // Re-render UI — TANPA autoSave agar tidak loop
       try{
@@ -11764,7 +11762,6 @@ function _startPresensiRealtimeSync(bulan, tahun){
         }
         renderKirimStatus();
         _updateBtnHitung();
-        _setSinkronBtn(_stSynced);
       }catch(e){ console.warn('[Realtime] Gagal re-render:', e); }
       _prNotif("info","☁️ Data diperbarui dari Cloud","Data presensi disinkronkan dari perangkat lain secara otomatis.");
     }catch(e){ console.warn('[Firebase] Gagal parse real-time presensi:', e); }
@@ -12683,7 +12680,7 @@ function _updateBtnHitung(){
 }
 
 function batalHitung(){
-  if(!confirm('Yakin ingin membatalkan hasil hitung?\n\nData rekap dan ringkasan akan dihapus. Data baris presensi tetap tersimpan.')) return;
+  if(!confirm('Batalkan hasil hitung? Data keterangan tidak hadir tetap tersimpan, hanya status hitung yang direset.')) return;
   submitted=false;
   published=false;
   _summaryMap={};
@@ -12696,7 +12693,6 @@ function batalHitung(){
 }
 
 function hitungSekarang(){
-  if(!confirm('Hitung rekap presensi sekarang?\n\nPastikan semua data jam masuk/pulang dan keterangan sudah benar sebelum dihitung.')) return;
   _prLoad("Menghitung data presensi...");
   setTimeout(()=>{
     submitted=true;
@@ -16749,32 +16745,7 @@ function autoIsiDariST(bulan, tahun, silent){
 }
 
 // Sinkronisasi Surat Tugas → keterangan Dinas di Presensi
-// ── Toggle button state helpers ───────────────────────────────────────────────
-let _stSynced = false; // apakah sinkron ST sudah aktif
-
-function _setSinkronBtn(synced){
-  _stSynced = synced;
-  const btn = document.getElementById('btnSinkronST');
-  if(!btn) return;
-  if(synced){
-    btn.innerHTML = '↩️ Batal Sinkron';
-    btn.style.background = '';
-    btn.style.color = '#dc2626';
-    btn.style.border = '1.5px solid #dc2626';
-  } else {
-    btn.innerHTML = '🔄 Sinkronisasi';
-    btn.style.background = '#16a34a';
-    btn.style.color = 'white';
-    btn.style.border = 'none';
-  }
-}
-
-function _toggleSinkronST(){
-  if(_stSynced){ batalSinkronST(); } else { doSyncFromST(); }
-}
-
 function doSyncFromST(){
-  if(!confirm('Sinkronisasi data dari Surat Tugas?\n\nKeterangan \'Dinas\' akan diisi otomatis berdasarkan ST aktif bulan ini.')) return;
   const bulan=parseInt(document.getElementById('sBulan')?.value)||new Date().getMonth()+1;
   const tahun=parseInt(document.getElementById('sTahun')?.value)||new Date().getFullYear();
   const raw=localStorage.getItem('st_app_db_v2');
@@ -16822,17 +16793,9 @@ function doSyncFromST(){
     const msg=(ditambahBaris>0?ditambahBaris+' baris baru, ':'')+applied+' keterangan Dinas Luar diterapkan';
     showToast('✅ '+msg,'success');
     if(el)el.textContent=msg+(skipped>0?', '+skipped+' dilewati':'');
-    _setSinkronBtn(true);
   }else{
-    if(skipped>0){
-      _setSinkronBtn(true);
-      savePresensiDB();
-      showToast('Semua data sudah tersinkron ('+skipped+' dilewati)','success');
-      if(el)el.textContent='Semua sudah tersinkron, '+skipped+' dilewati';
-    }else{
-      showToast('Tidak ada data ST bulan ini yang cocok','success');
-      if(el)el.textContent='Tidak ada perubahan';
-    }
+    showToast('Tidak ada perubahan ('+skipped+' sudah terisi)','success');
+    if(el)el.textContent='Tidak ada perubahan';
   }
 }
 
@@ -16841,7 +16804,6 @@ function doSyncFromST(){
 // ── Batal Sinkronisasi dari Surat Tugas ──────────────────────────────────────
 // Hapus semua baris & keterangan yang sebelumnya ditambahkan oleh doSyncFromST
 function batalSinkronST(){
-  if(!confirm('Yakin ingin membatalkan sinkronisasi?\n\nKeterangan \'Dinas\' yang diisi otomatis dari ST akan dihapus.')) return;
   const bulan=parseInt(document.getElementById('sBulan')?.value)||new Date().getMonth()+1;
   const tahun=parseInt(document.getElementById('sTahun')?.value)||new Date().getFullYear();
   const raw=localStorage.getItem('st_app_db_v2');
@@ -16893,10 +16855,19 @@ function batalSinkronST(){
     invalidateRowCache();
     renderRows();
     savePresensiDB();_summaryMap=buildSummaryMap();renderRekapPraHitung();renderKalender();
+    // Kirim sinyal forceSync ke Firestore agar perangkat lain ikut update
+    try{
+      const fbDoc=_getPresensiFirestoreDoc();
+      if(fbDoc){
+        const _fsSavedAt=new Date().toISOString();
+        _prOwnSave=_fsSavedAt;
+        const _rawAfter=localStorage.getItem(getDbKey());
+        fbDoc.set({data:_rawAfter||'{}', updatedAt:_fsSavedAt, forceSyncAt:_fsSavedAt});
+      }
+    }catch(e){console.warn('[batalSinkronST] forceSync gagal:',e);}
     const msg=hapusBaris+' baris & '+hapusKet+' keterangan Dinas Luar dibatalkan';
     showToast('↩️ '+msg,'success');
     if(el)el.textContent=msg;
-    _setSinkronBtn(false);
   }else{
     showToast('Tidak ada sinkronisasi sebelumnya yang bisa dibatalkan','success');
     if(el)el.textContent='Tidak ada yang dibatalkan';
@@ -16981,7 +16952,8 @@ function batalSinkronST(){
           <div style="font-size:13px;font-weight:700;color:#16a34a;margin-bottom:3px">🔄 Sinkronisasi dari Surat Tugas</div>
           <div style="font-size:12px;color:#475068">Tambah baris &amp; isi otomatis keterangan <b>Dinas Luar</b> dari Surat Tugas bulan ini.</div>
         </div>
-        <button id="btnSinkronST" onclick="_toggleSinkronST()" class="btn" style="background:#16a34a;color:white;border:none;white-space:nowrap;padding:11px 22px;font-size:14px">🔄 Sinkronisasi</button>
+        <button onclick="doSyncFromST()" class="btn" style="background:#16a34a;color:white;border:none;white-space:nowrap;padding:11px 22px;font-size:14px">🔄 Sinkronisasi</button>
+        <button onclick="batalSinkronST()" class="btn btn-outline" style="white-space:nowrap;border-color:#dc2626;color:#dc2626;padding:11px 22px;font-size:14px" title="Hapus baris &amp; keterangan Dinas Luar yang ditambahkan dari Surat Tugas">↩️ Batal Sinkron</button>
         <button onclick="deteksiNamaAsing()" class="btn btn-outline" style="white-space:nowrap;border-color:#16a34a;color:#16a34a;padding:11px 22px;font-size:14px">🔗 Pemetaan Nama</button>
         <button onclick="editNamaMap()" class="btn btn-outline" style="white-space:nowrap;border-color:#1a6b6b;color:#1a6b6b;padding:11px 22px;font-size:14px">✏️ Edit Pemetaan</button>
         <span id="pr-sync-result" style="font-size:11px;color:#475068"></span>
