@@ -11188,7 +11188,7 @@ function _showModalAt(idx){
   document.getElementById("modalKetNav").style.display=hasQueue?"block":"none";
   document.getElementById("btnNavPrev").style.display=hasQueue?"inline-block":"none";
   document.getElementById("btnNavNext").style.display=hasQueue&&idx<_modalQueue.length-1?"inline-block":"none";
-  document.getElementById("btnNavSelesai").textContent=(!hasQueue||idx===_modalQueue.length-1)?"✅ Selesai":"Lewati ▶";
+  document.getElementById("btnNavSelesai").textContent=(!hasQueue||idx===_modalQueue.length-1)?"✅ Selesai":"Simpan ▶";
   // Tombol Simpan: tampil saat single tanggal (tidak pakai Next/Prev) dan ada pilihan aktif
   const btnSimpanKet=document.getElementById("btnSimpanKet");
   btnSimpanKet.style.display=(!hasQueue&&current)?"inline-block":"none";
@@ -12680,7 +12680,10 @@ function _updateBtnHitung(){
 }
 
 function batalHitung(){
-  if(!confirm('Batalkan hasil hitung? Data keterangan tidak hadir tetap tersimpan, hanya status hitung yang direset.')) return;
+  const bulan=parseInt(document.getElementById('sBulan')?.value)||new Date().getMonth()+1;
+  const tahun=parseInt(document.getElementById('sTahun')?.value)||new Date().getFullYear();
+  const namaBulan=['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][bulan]||bulan;
+  if(!confirm(`Batal Hitung Rekap\n\nStatus rekap bulan ${namaBulan} ${tahun} akan direset ke pra-hitung.\n\nData keterangan tidak hadir yang sudah diisi tetap tersimpan, hanya status hitung yang dibatalkan.\n\nLanjutkan?`)) return;
   submitted=false;
   published=false;
   _summaryMap={};
@@ -12693,6 +12696,10 @@ function batalHitung(){
 }
 
 function hitungSekarang(){
+  const bulan=parseInt(document.getElementById('sBulan')?.value)||new Date().getMonth()+1;
+  const tahun=parseInt(document.getElementById('sTahun')?.value)||new Date().getFullYear();
+  const namaBulan=['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][bulan]||bulan;
+  if(!confirm(`Hitung Rekap Presensi\n\nProses ini akan menghitung rekap kehadiran seluruh pegawai untuk bulan ${namaBulan} ${tahun} berdasarkan data presensi yang ada.\n\nLanjutkan?`))return;
   _prLoad("Menghitung data presensi...");
   setTimeout(()=>{
     submitted=true;
@@ -16748,6 +16755,8 @@ function autoIsiDariST(bulan, tahun, silent){
 function doSyncFromST(){
   const bulan=parseInt(document.getElementById('sBulan')?.value)||new Date().getMonth()+1;
   const tahun=parseInt(document.getElementById('sTahun')?.value)||new Date().getFullYear();
+  const namaBulan=['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][bulan]||bulan;
+  if(!confirm(`Sinkronisasi Surat Tugas → Presensi\n\nTindakan ini akan menambahkan keterangan Dinas Luar dari Surat Tugas bulan ${namaBulan} ${tahun} ke data presensi.\n\nKeterangan yang sudah diisi manual tidak akan ditimpa.\n\nLanjutkan?`))return;
   const raw=localStorage.getItem('st_app_db_v2');
   if(!raw){showToast('Data Surat Tugas tidak ditemukan','error');return;}
   let stData;try{stData=JSON.parse(raw);}catch(e){showToast('Gagal membaca Surat Tugas','error');return;}
@@ -16806,6 +16815,8 @@ function doSyncFromST(){
 function batalSinkronST(){
   const bulan=parseInt(document.getElementById('sBulan')?.value)||new Date().getMonth()+1;
   const tahun=parseInt(document.getElementById('sTahun')?.value)||new Date().getFullYear();
+  const namaBulan=['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][bulan]||bulan;
+  if(!confirm(`Batal Sinkronisasi Surat Tugas\n\nTindakan ini akan menghapus keterangan Dinas Luar dan baris yang sebelumnya ditambahkan dari Surat Tugas bulan ${namaBulan} ${tahun}.\n\nBaris yang sudah ada jam masuk/pulang manual tidak akan dihapus.\n\nLanjutkan?`))return;
   const raw=localStorage.getItem('st_app_db_v2');
   if(!raw){showToast('Data Surat Tugas tidak ditemukan','error');return;}
   let stData;try{stData=JSON.parse(raw);}catch(e){showToast('Gagal membaca Surat Tugas','error');return;}
