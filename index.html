@@ -11686,6 +11686,7 @@ function loadPresensiDB(bulan, tahun){
           }
           renderKirimStatus();
           _updateBtnHitung();
+          _setSinkronBtn(_stSynced);
           _prNotif("info","☁️ Data diperbarui dari Cloud","Data presensi disinkronkan dari perangkat lain.");
         }
       }catch(e){ console.warn('[Firebase] Gagal parse presensi dari Firestore:', e); }
@@ -11763,6 +11764,7 @@ function _startPresensiRealtimeSync(bulan, tahun){
         }
         renderKirimStatus();
         _updateBtnHitung();
+        _setSinkronBtn(_stSynced);
       }catch(e){ console.warn('[Realtime] Gagal re-render:', e); }
       _prNotif("info","☁️ Data diperbarui dari Cloud","Data presensi disinkronkan dari perangkat lain secara otomatis.");
     }catch(e){ console.warn('[Firebase] Gagal parse real-time presensi:', e); }
