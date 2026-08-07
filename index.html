@@ -11671,27 +11671,12 @@ function loadPresensiDB(bulan, tahun){
         const _firestoreMenang = !freshLocalSaved || (fbSaved > freshLocalSaved);
         if(_firestoreMenang && fbSaved){
           console.log('[Firebase] Presensi lebih baru di Firestore — diterapkan ✅');
-          // Simpan state sesi saat ini sebelum di-overwrite
-          const _ketSebelumnya = Object.assign({}, keteranganTH);
-          const _rowsSebelumnya = rows.slice();
-          // Reset state sebelum apply
+          // Firestore adalah sumber kebenaran — apply langsung tanpa merge lokal
           rows=[{nama:"",tanggal:"",jamMasuk:"",jamPulang:""}];
           submitted=false; published=false; keteranganTH={}; ambilLiburUsed={}; kuotaManual={};
           tanggalMerah={}; tanggalCuti={};
           _applyPresensiData(fbData);
-          // Merge keterangan sesi ini ke fbData: hanya tambah key yang tidak ada di fbData
-          Object.keys(_ketSebelumnya).forEach(function(k){
-            if(!(k in keteranganTH)) keteranganTH[k]=_ketSebelumnya[k];
-          });
-          // Merge rows sesi ini: tambahkan baris sesi yang punya presensi tapi tidak ada di fbData
-          _rowsSebelumnya.forEach(function(rSesi){
-            if(!rSesi.nama||!rSesi.tanggal) return;
-            const adaDiFb = rows.some(function(r){return r.nama===rSesi.nama && r.tanggal===rSesi.tanggal;});
-            if(!adaDiFb && (rSesi.jamMasuk||rSesi.jamPulang)) rows.push(rSesi);
-          });
-          // Simpan ke localStorage saja — TIDAK re-save ke Firestore agar tidak trigger onSnapshot perangkat lain
-          const _mergedData = Object.assign({}, fbData, {keteranganTH: keteranganTH, rows: rows});
-          localStorage.setItem(key, JSON.stringify(_mergedData));
+          localStorage.setItem(key, JSON.stringify(fbData));
           // Re-render UI — TANPA autoSave agar tidak loop
           invalidateRowCache();
           const _p2=getPeriodeStr();
@@ -11769,28 +11754,12 @@ function _startPresensiRealtimeSync(bulan, tahun){
       if(fbSaved === _prOwnSave) return; // ini save dari perangkat kita sendiri → abaikan
       console.log('[Firebase] Real-time: data lebih baru dari perangkat lain — diterapkan ✅', fbSaved);
       _prLastApplied = fbSaved;
-      // Simpan state keterangan sesi ini agar tidak hilang
-      const _ketSebelumnya = Object.assign({}, keteranganTH);
-      const _rowsSebelumnya = rows.slice();
-      // Reset & apply
+      // Firestore adalah sumber kebenaran — apply langsung tanpa merge lokal
       rows=[{nama:"",tanggal:"",jamMasuk:"",jamPulang:""}];
       submitted=false; published=false; keteranganTH={}; ambilLiburUsed={}; kuotaManual={};
       tanggalMerah={}; tanggalCuti={};
       _applyPresensiData(fbData);
-      // Merge keterangan & baris sesi lokal: hanya tambah key yang tidak ada di fbData
-      Object.keys(_ketSebelumnya).forEach(function(k){
-        if(!(k in keteranganTH)) keteranganTH[k]=_ketSebelumnya[k];
-      });
-      _rowsSebelumnya.forEach(function(rSesi){
-        if(!rSesi.nama||!rSesi.tanggal) return;
-        const adaDiFb = rows.some(function(r){return r.nama===rSesi.nama && r.tanggal===rSesi.tanggal;});
-        if(!adaDiFb && (rSesi.jamMasuk||rSesi.jamPulang)) rows.push(rSesi);
-      });
-      // Simpan mergedData (bukan fbData mentah) agar freshLocalSaved akurat
-      const _mergedSnap = Object.assign({}, fbData, {
-        rows: rows, keteranganTH: keteranganTH
-      });
-      localStorage.setItem(key, JSON.stringify(_mergedSnap));
+      localStorage.setItem(key, JSON.stringify(fbData));
       // Re-render UI — TANPA autoSave agar tidak loop
       try{
         invalidateRowCache();
