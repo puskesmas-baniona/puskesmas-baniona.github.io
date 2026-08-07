@@ -11671,12 +11671,27 @@ function loadPresensiDB(bulan, tahun){
         const _firestoreMenang = !freshLocalSaved || (fbSaved > freshLocalSaved);
         if(_firestoreMenang && fbSaved){
           console.log('[Firebase] Presensi lebih baru di Firestore — diterapkan ✅');
-          // Firestore adalah sumber kebenaran — apply langsung tanpa merge lokal
+          // Simpan state sesi saat ini sebelum di-overwrite
+          const _ketSebelumnya = Object.assign({}, keteranganTH);
+          const _rowsSebelumnya = rows.slice();
+          // Reset state sebelum apply
           rows=[{nama:"",tanggal:"",jamMasuk:"",jamPulang:""}];
           submitted=false; published=false; keteranganTH={}; ambilLiburUsed={}; kuotaManual={};
           tanggalMerah={}; tanggalCuti={};
           _applyPresensiData(fbData);
-          localStorage.setItem(key, JSON.stringify(fbData));
+          // Merge keterangan sesi ini ke fbData: hanya tambah key yang tidak ada di fbData
+          Object.keys(_ketSebelumnya).forEach(function(k){
+            if(!(k in keteranganTH)) keteranganTH[k]=_ketSebelumnya[k];
+          });
+          // Merge rows sesi ini: tambahkan baris sesi yang punya presensi tapi tidak ada di fbData
+          _rowsSebelumnya.forEach(function(rSesi){
+            if(!rSesi.nama||!rSesi.tanggal) return;
+            const adaDiFb = rows.some(function(r){return r.nama===rSesi.nama && r.tanggal===rSesi.tanggal;});
+            if(!adaDiFb && (rSesi.jamMasuk||rSesi.jamPulang)) rows.push(rSesi);
+          });
+          // Simpan ke localStorage saja — TIDAK re-save ke Firestore agar tidak trigger onSnapshot perangkat lain
+          const _mergedData = Object.assign({}, fbData, {keteranganTH: keteranganTH, rows: rows});
+          localStorage.setItem(key, JSON.stringify(_mergedData));
           // Re-render UI — TANPA autoSave agar tidak loop
           invalidateRowCache();
           const _p2=getPeriodeStr();
@@ -11744,6 +11759,14 @@ function _startPresensiRealtimeSync(bulan, tahun){
       const freshLocalRaw = localStorage.getItem(key);
       let freshLocalSaved = "";
       try{ freshLocalSaved = freshLocalRaw ? (JSON.parse(freshLocalRaw).savedAt||"") : ""; }catch(e){}
+      // Penanda forceSync dari batal sinkron/batal hitung → paksa apply meski lokal lebih baru
+      const forceSyncAt = snap.data().forceSyncAt || "";
+      if(forceSyncAt && forceSyncAt !== _prOwnSave){
+        // Hapus localStorage agar tidak mengalahkan Firestore
+        localStorage.removeItem(key);
+        freshLocalSaved = "";
+        console.log('[Firebase] forceSync diterima — lokal direset, apply data Firestore ✅');
+      }
       // Skip hanya jika: (1) data ini sudah pernah kita apply sebelumnya DAN
       //                  (2) tidak ada data lebih baru di Firestore dari perangkat lain
       // fbSaved <= freshLocalSaved → lokal sudah sama atau lebih baru → skip
@@ -11754,12 +11777,28 @@ function _startPresensiRealtimeSync(bulan, tahun){
       if(fbSaved === _prOwnSave) return; // ini save dari perangkat kita sendiri → abaikan
       console.log('[Firebase] Real-time: data lebih baru dari perangkat lain — diterapkan ✅', fbSaved);
       _prLastApplied = fbSaved;
-      // Firestore adalah sumber kebenaran — apply langsung tanpa merge lokal
+      // Simpan state keterangan sesi ini agar tidak hilang
+      const _ketSebelumnya = Object.assign({}, keteranganTH);
+      const _rowsSebelumnya = rows.slice();
+      // Reset & apply
       rows=[{nama:"",tanggal:"",jamMasuk:"",jamPulang:""}];
       submitted=false; published=false; keteranganTH={}; ambilLiburUsed={}; kuotaManual={};
       tanggalMerah={}; tanggalCuti={};
       _applyPresensiData(fbData);
-      localStorage.setItem(key, JSON.stringify(fbData));
+      // Merge keterangan & baris sesi lokal: hanya tambah key yang tidak ada di fbData
+      Object.keys(_ketSebelumnya).forEach(function(k){
+        if(!(k in keteranganTH)) keteranganTH[k]=_ketSebelumnya[k];
+      });
+      _rowsSebelumnya.forEach(function(rSesi){
+        if(!rSesi.nama||!rSesi.tanggal) return;
+        const adaDiFb = rows.some(function(r){return r.nama===rSesi.nama && r.tanggal===rSesi.tanggal;});
+        if(!adaDiFb && (rSesi.jamMasuk||rSesi.jamPulang)) rows.push(rSesi);
+      });
+      // Simpan mergedData (bukan fbData mentah) agar freshLocalSaved akurat
+      const _mergedSnap = Object.assign({}, fbData, {
+        rows: rows, keteranganTH: keteranganTH
+      });
+      localStorage.setItem(key, JSON.stringify(_mergedSnap));
       // Re-render UI — TANPA autoSave agar tidak loop
       try{
         invalidateRowCache();
@@ -11884,8 +11923,7 @@ function onBulanChange(){
       _prLastApplied=""; // reset agar listener baru bisa apply
       _startPresensiRealtimeSync(newB, newT); // 🔄 mulai real-time sync bulan ini
 
-      _prSuppressAutoSave=true; // blok autoSave sampai Firestore selesai
-      onSettingChange();
+      _prSuppressAutoSave=true; onSettingChange(); _prSuppressAutoSave=false;
       renderTglMerah(); renderTglCuti(); renderRows();
       if(loaded && submitted){
         _summaryMap=buildSummaryMap();
@@ -11899,8 +11937,6 @@ function onBulanChange(){
       // Auto isi dari ST DINONAKTIFKAN — gunakan tombol "🔄 Sinkronisasi" secara manual
       renderKirimStatus();
       _prUnload();
-      // Lepas blok autoSave setelah Firestore pasti sudah selesai
-      setTimeout(()=>{ _prSuppressAutoSave=false; }, 3000);
     },30);
     return;
   }
@@ -16647,20 +16683,17 @@ function _initPresensiPanel(){
   document.getElementById('sTahun').value=now.getFullYear();
   _activeBulan=now.getMonth()+1;
   _activeTahun=now.getFullYear();
-  _prSuppressAutoSave=true; // blok semua autoSave sampai Firestore selesai
   const loaded=loadPresensiDB(_activeBulan,_activeTahun);
   if(loaded) terapkanNamaMap();
   _prLastApplied=""; // reset agar listener bisa apply pertama kali
   _startPresensiRealtimeSync(_activeBulan,_activeTahun); // 🔄 mulai real-time sync
-  onSettingChange();
+  _prSuppressAutoSave=true; onSettingChange(); _prSuppressAutoSave=false;
   renderTglMerah();renderTglCuti();renderRows();
   if(loaded&&submitted){
     _summaryMap=buildSummaryMap();
     updateBonusPool();renderSummary();renderKalender();
   }
   renderKirimStatus();
-  // Lepas blok autoSave setelah Firestore pasti sudah selesai
-  setTimeout(()=>{ _prSuppressAutoSave=false; }, 3000);
   // Auto isi dari ST DINONAKTIFKAN — sinkronisasi hanya dijalankan saat admin klik tombol "🔄 Sinkronisasi"
   // Tombol hapus data di topbar
   document.getElementById('topbar-actions').innerHTML=
@@ -16874,6 +16907,16 @@ function batalSinkronST(){
     invalidateRowCache();
     renderRows();
     savePresensiDB();_summaryMap=buildSummaryMap();renderRekapPraHitung();renderKalender();
+    // Kirim sinyal forceSync ke Firestore agar perangkat lain ikut update
+    try{
+      const fbDoc=_getPresensiFirestoreDoc();
+      if(fbDoc){
+        const _fsSavedAt=new Date().toISOString();
+        _prOwnSave=_fsSavedAt;
+        const _rawAfter=localStorage.getItem(getDbKey());
+        fbDoc.set({data:_rawAfter||'{}', updatedAt:_fsSavedAt, forceSyncAt:_fsSavedAt});
+      }
+    }catch(e){console.warn('[batalSinkronST] forceSync gagal:',e);}
     const msg=hapusBaris+' baris & '+hapusKet+' keterangan Dinas Luar dibatalkan';
     showToast('↩️ '+msg,'success');
     if(el)el.textContent=msg;
