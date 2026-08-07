@@ -16824,8 +16824,15 @@ function doSyncFromST(){
     if(el)el.textContent=msg+(skipped>0?', '+skipped+' dilewati':'');
     _setSinkronBtn(true);
   }else{
-    showToast('Tidak ada perubahan ('+skipped+' sudah terisi)','success');
-    if(el)el.textContent='Tidak ada perubahan';
+    if(skipped>0){
+      _setSinkronBtn(true);
+      savePresensiDB();
+      showToast('Semua data sudah tersinkron ('+skipped+' dilewati)','success');
+      if(el)el.textContent='Semua sudah tersinkron, '+skipped+' dilewati';
+    }else{
+      showToast('Tidak ada data ST bulan ini yang cocok','success');
+      if(el)el.textContent='Tidak ada perubahan';
+    }
   }
 }
 
