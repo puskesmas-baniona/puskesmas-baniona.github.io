@@ -740,7 +740,10 @@
   .grid-input:hover{background:rgba(26,107,107,.04)!important}
 
   .pr-save-btn{font-size:13px;background:#f0fdf4;border:1.5px solid #86efac;cursor:pointer;color:#16a34a;padding:2px 6px;line-height:1;border-radius:6px;transition:color .15s,background .15s,border-color .15s;font-weight:700;min-height:30px;}
-  .pr-float-add{position:fixed;bottom:24px;right:20px;z-index:999;width:52px;height:52px;border-radius:50%;background:var(--teal);color:#fff;font-size:26px;line-height:1;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(26,107,107,.35),0 2px 6px rgba(0,0,0,.15);display:none;align-items:center;justify-content:center;transition:background .15s,transform .1s,box-shadow .15s;-webkit-tap-highlight-color:transparent;}
+  .rpk-float-add{position:fixed;bottom:90px;right:20px;z-index:10000;width:52px;height:52px;border-radius:50%;background:var(--teal);color:#fff;font-size:26px;line-height:1;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(26,107,107,.35),0 2px 6px rgba(0,0,0,.15);display:none;align-items:center;justify-content:center;transition:background .15s,transform .1s,box-shadow .15s;-webkit-tap-highlight-color:transparent;}
+  .rpk-float-add:hover{background:var(--teal-dk,#155e5e);box-shadow:0 6px 20px rgba(26,107,107,.45);}
+  .rpk-float-add:active{transform:scale(.93);}
+  .pr-float-add{position:fixed;bottom:24px;right:20px;z-index:10000;width:52px;height:52px;border-radius:50%;background:var(--teal);color:#fff;font-size:26px;line-height:1;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(26,107,107,.35),0 2px 6px rgba(0,0,0,.15);display:none;align-items:center;justify-content:center;transition:background .15s,transform .1s,box-shadow .15s;-webkit-tap-highlight-color:transparent;}
   .pr-float-add:hover{background:var(--teal-dk,#155e5e);box-shadow:0 6px 20px rgba(26,107,107,.45);}
   .pr-float-add:active{transform:scale(.93);}
   #panel-input.active ~ .pr-float-add, .pr-float-add.visible{display:flex;}
@@ -1701,6 +1704,11 @@ function doLogin(){
   }
 }
 function doLogout(){
+  // Sembunyikan floating buttons
+  const prFab=document.getElementById('prFloatAdd');
+  if(prFab) prFab.style.display='none';
+  const rpkFab=document.getElementById('rpkFloatAdd');
+  if(rpkFab) rpkFab.style.display='none';
   // Hentikan pemantau inaktivitas
   stopInactivityWatcher();
   // Hentikan real-time listener presensi
@@ -2052,6 +2060,8 @@ function navigateTo(panel){
   // Sembunyikan floating button saat pindah panel
   const fab=document.getElementById('prFloatAdd');
   if(fab && panel!=='presensi') fab.style.display='none';
+  const rpkFab=document.getElementById('rpkFloatAdd');
+  if(rpkFab && panel!=='rpk') rpkFab.style.display='none';
   // Cek jika meninggalkan panel presensi dengan data pending
   const activePanel = document.querySelector('.panel.active');
   const isPanelPresensi = activePanel && activePanel.id === 'panel-presensi';
@@ -8270,6 +8280,18 @@ function getPeriodeMgmtDefault(){
 }
 
 function renderRPK(){
+  // Inject floating button jika belum ada
+  let rpkFab=document.getElementById('rpkFloatAdd');
+  if(!rpkFab){
+    rpkFab=document.createElement('button');
+    rpkFab.id='rpkFloatAdd';
+    rpkFab.className='rpk-float-add';
+    rpkFab.title='Tambah Kegiatan Baru';
+    rpkFab.innerHTML='＋';
+    rpkFab.onclick=function(){ bukaEditJadwal(null,'rpk'); };
+    document.body.appendChild(rpkFab);
+  }
+  rpkFab.style.display='flex';
   if(!db.jadwal) db.jadwal=[];
   const now=new Date();
 
@@ -17127,9 +17149,6 @@ function batalSinkronST(){
       </div>
     </div>
 
-    <!-- Floating button tambah baris presensi -->
-    <button class="pr-float-add" id="prFloatAdd" onclick="addRow()" title="Tambah Baris">＋</button>
-
     <div id="panel-kalender" style="display:none">
       <div class="card">
         <div class="card-header" style="padding:12px 20px"><h3 style="font-size:13px">📅 Kalender Presensi — <span id="kalPeriode" style="color:var(--teal)"></span></h3></div>
@@ -18444,5 +18463,9 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
+
+    <!-- Floating button tambah baris presensi -->
+    <button class="pr-float-add" id="prFloatAdd" onclick="addRow()" title="Tambah Baris" style="display:none">＋</button>
+
 </body>
 </html>
