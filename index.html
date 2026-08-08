@@ -740,6 +740,10 @@
   .grid-input:hover{background:rgba(26,107,107,.04)!important}
 
   .pr-save-btn{font-size:13px;background:#f0fdf4;border:1.5px solid #86efac;cursor:pointer;color:#16a34a;padding:2px 6px;line-height:1;border-radius:6px;transition:color .15s,background .15s,border-color .15s;font-weight:700;min-height:30px;}
+  .pr-float-add{position:fixed;bottom:24px;right:20px;z-index:999;width:52px;height:52px;border-radius:50%;background:var(--teal);color:#fff;font-size:26px;line-height:1;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(26,107,107,.35),0 2px 6px rgba(0,0,0,.15);display:none;align-items:center;justify-content:center;transition:background .15s,transform .1s,box-shadow .15s;-webkit-tap-highlight-color:transparent;}
+  .pr-float-add:hover{background:var(--teal-dk,#155e5e);box-shadow:0 6px 20px rgba(26,107,107,.45);}
+  .pr-float-add:active{transform:scale(.93);}
+  #panel-input.active ~ .pr-float-add, .pr-float-add.visible{display:flex;}
   .pr-save-btn:hover{color:#fff;background:#16a34a;border-color:#16a34a;}
   .pr-input{width:100%;padding:7px 10px;border:1.5px solid #E2E8F0;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;transition:border-color .2s,box-shadow .2s;outline:none;color:#1E2A4A}
   .pr-input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(26,107,107,.08)}
@@ -2045,6 +2049,9 @@ const navHistory={
 function ni(id,icon,label){return`<button class="nav-item" id="nav-${id}" onclick="navigateTo('${id}')">${icon} ${label}</button>`;}
 
 function navigateTo(panel){
+  // Sembunyikan floating button saat pindah panel
+  const fab=document.getElementById('prFloatAdd');
+  if(fab && panel!=='presensi') fab.style.display='none';
   // Cek jika meninggalkan panel presensi dengan data pending
   const activePanel = document.querySelector('.panel.active');
   const isPanelPresensi = activePanel && activePanel.id === 'panel-presensi';
@@ -2085,6 +2092,8 @@ function navigateTo(panel){
     if(rend[panel])rend[panel]();
     if(panel==='presensi'){
       _initPresensiPanel();
+      const fab=document.getElementById('prFloatAdd');
+      if(fab) fab.style.display='flex';
       document.getElementById('topbar-actions').innerHTML=
         '<button class="btn btn-outline btn-sm" onclick="downloadTemplatePresensi()" style="border-color:var(--teal);color:var(--teal);font-weight:600" title="Unduh template Excel untuk impor data presensi">⬇️ Format Impor</button><button class="btn btn-danger btn-sm" onclick="clearDB()">🗑 Hapus Data Bulan Ini</button>';
     }
@@ -16693,6 +16702,9 @@ function switchTab(tab){
     if(panel)panel.style.display=t===tab?'block':'none';
     if(btn)btn.className='pr-tab'+(t===tab?' active':'');
   });
+  // Floating button hanya muncul saat tab Input aktif
+  const fab=document.getElementById('prFloatAdd');
+  if(fab) fab.style.display=tab==='input'?'flex':'none';
   if(tab==='kalender')renderKalender();
   if(tab==='rekap'){
     if(submitted){
@@ -17114,6 +17126,9 @@ function batalSinkronST(){
         </div>
       </div>
     </div>
+
+    <!-- Floating button tambah baris presensi -->
+    <button class="pr-float-add" id="prFloatAdd" onclick="addRow()" title="Tambah Baris">＋</button>
 
     <div id="panel-kalender" style="display:none">
       <div class="card">
