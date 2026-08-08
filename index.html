@@ -736,8 +736,11 @@
   #save-indicator.cloud-error{display:flex;background:#FFF1F2;color:#BE123C;font-weight:700;animation:none}
 
   /* ═══ PRESENSI CSS ═══ */
-  .grid-input{display:grid;grid-template-columns:1.7fr 130px 110px 110px 88px 28px;gap:6px;align-items:center;margin-bottom:4px;padding:6px 8px;border-radius:10px;transition:background .15s}
+  .grid-input{display:grid;grid-template-columns:1.7fr 130px 110px 110px 88px 36px 28px;gap:6px;align-items:center;margin-bottom:4px;padding:6px 8px;border-radius:10px;transition:background .15s}
   .grid-input:hover{background:rgba(26,107,107,.04)!important}
+
+  .pr-save-btn{font-size:13px;background:#f0fdf4;border:1.5px solid #86efac;cursor:pointer;color:#16a34a;padding:2px 6px;line-height:1;border-radius:6px;transition:color .15s,background .15s,border-color .15s;font-weight:700;min-height:30px;}
+  .pr-save-btn:hover{color:#fff;background:#16a34a;border-color:#16a34a;}
   .pr-input{width:100%;padding:7px 10px;border:1.5px solid #E2E8F0;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;transition:border-color .2s,box-shadow .2s;outline:none;color:#1E2A4A}
   .pr-input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(26,107,107,.08)}
   .pr-input::placeholder{color:#94a3b8;font-size:12px}
@@ -11177,6 +11180,7 @@ function _showModalAt(idx){
   _modalQueueIdx=idx;
   const {nama,ds}=_modalQueue[idx];
   _modalNama=nama; _modalDs=ds;
+  if(typeof buildSummaryMap==='function') _summaryMap=buildSummaryMap();
   const current=keteranganTH[ketKey(nama,ds)]||"";
   document.getElementById("modalKetInfo").innerHTML=
     `<span style="font-weight:800;color:#1E2A4A">${esc(nama)}</span><br><span style="font-size:11px;color:#6B7A99;font-weight:500">${fmtTgl(ds)}</span>`;
@@ -12364,7 +12368,82 @@ function buildSummaryMap(){
 // ═══════════════════════════════════════════════════════
 // ROWS RENDER
 // ═══════════════════════════════════════════════════════
-function addRow(){rows.push({nama:"",tanggal:"",jamMasuk:"",jamPulang:""});renderRows();autoSave();}
+function addRow(){
+  const newRow = {nama:"",tanggal:"",jamMasuk:"",jamPulang:""};
+  rows.push(newRow);
+  renderRows();
+  autoSave();
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      const newIdx = rows.indexOf(newRow);
+      const idx = newIdx >= 0 ? newIdx : rows.length - 1;
+      _prFlashRow('pr-row-'+idx);
+      const inp = document.getElementById('pr-nama-inp-'+idx);
+      if(inp){ inp.focus(); inp.scrollIntoView({behavior:'smooth',block:'center'}); }
+    });
+  });
+}
+
+function _prSortRows(){
+  rows.sort((a,b)=>{
+    const nc=(a.nama||'').localeCompare(b.nama||'','id');
+    if(nc!==0) return nc;
+    return (a.tanggal||'').localeCompare(b.tanggal||'');
+  });
+}
+
+// Highlight baris seperti RPK — pakai inline style agar kompatibel di Android
+function _prFlashRow(elId){
+  const el = document.getElementById(elId);
+  if(!el) return;
+  // Kumpulkan semua elemen yang perlu di-highlight (parent + semua child)
+  const targets = [el, ...el.querySelectorAll('input, .cell-jk, .pr-save-btn, .pr-date-wrap, .pr-nama-wrap')];
+  // Simpan background & color asli tiap elemen
+  const origBgs    = targets.map(t => t.style.background || '');
+  const origColors = targets.map(t => t.style.color || '');
+  // Set hijau + teks hitam ke semua sekaligus
+  targets.forEach(t => {
+    t.style.transition = 'background .3s, color .3s';
+    t.style.background = '#41e506';
+    t.style.color = '#111';
+  });
+  el.style.outline = '2.5px solid #fbff00';
+  el.style.outlineOffset = '-2px';
+  el.scrollIntoView({behavior:'smooth', block:'center'});
+  // Fade out setelah 4 detik, kembalikan background & color asli
+  setTimeout(()=>{
+    targets.forEach((t, idx) => {
+      t.style.transition = 'background 1.2s, color 1.2s';
+      t.style.background = origBgs[idx];
+      t.style.color = origColors[idx];
+    });
+    el.style.transition = 'outline 1.2s';
+    el.style.outline = '';
+    el.style.outlineOffset = '';
+  }, 4000);
+}
+
+function simpanBaris(i){
+  const r = rows[i];
+  if(!r) return;
+  const jmEl = document.getElementById('pr-jm-'+i);
+  const jpEl = document.getElementById('pr-jp-'+i);
+  if(jmEl) r.jamMasuk  = jmEl.value;
+  if(jpEl) r.jamPulang = jpEl.value;
+  const targetRow = r; // simpan referensi objek, bukan index
+  autoSave();
+  _prSortRows();
+  renderRows();
+  // Setelah render, cari posisi baru dan flash highlight
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{ // dua RAF = setelah browser benar-benar paint
+      const newIdx = rows.indexOf(targetRow);
+      const elId = 'pr-row-'+(newIdx >= 0 ? newIdx : i);
+      _prFlashRow(elId);
+    });
+  });
+}
+
 function removeRow(i){
   if(rows.length<=1) return;
   const r=rows[i];
@@ -12379,13 +12458,24 @@ function removeRow(i){
 
 let _renderTimer=null;
 function updateRow(i,f,v){
+  const targetRow = rows[i];
   rows[i][f]=v;
   autoSave();
-  if(!submitted) return;
   if(f==="nama"){
-    clearTimeout(_renderTimer);
-    _renderTimer=setTimeout(renderRows, 400);
+    // Hanya update data, jangan renderRows — mencegah kursor hilang saat mengetik
+    // renderRows akan dipanggil oleh prNamaPilih setelah nama dipilih dari dropdown
+  } else if(f==="tanggal"){
+    // Sort dan flash setelah tanggal diisi — selalu, tidak perlu submitted
+    _prSortRows();
+    renderRows();
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
+        const newIdx = rows.indexOf(targetRow);
+        if(newIdx>=0) _prFlashRow('pr-row-'+newIdx);
+      });
+    });
   } else {
+    if(!submitted) return;
     renderRows();
   }
 }
@@ -12473,7 +12563,7 @@ function renderRows(){
 
     const ketBtn = "";
 
-    parts.push(`<div class="grid-input" style="${rowBg}">
+    parts.push(`<div class="grid-input" id="pr-row-${i}" style="${rowBg}">
         <div class="pr-nama-wrap">
           <input type="text" value="${esc(row.nama)}" placeholder="Nama pegawai..." autocomplete="off"
             class="pr-input" style="${namaBorder};width:100%"
@@ -12497,6 +12587,7 @@ function renderRows(){
           oninput="prJamInput(this,${i},'jamPulang')"
           onblur="prJamBlur(this,${i},'jamPulang')">
         <div class="cell-jk" style="${jkStyle}">${jkText}</div>
+        <button class="pr-save-btn" onclick="simpanBaris(${i})" title="Simpan & urutkan">💾</button>
         <button class="remove-btn" onclick="removeRow(${i})" ${rows.length===1?"disabled":""} title="Hapus baris">✕</button>
       </div>
       ${badges?`<div class="inline-badges">${badges}</div>`:""}`);
@@ -12611,10 +12702,11 @@ function prNamaPilih(i, nama){
     autoSave();
   }
   // Pindahkan fokus ke input tanggal, render ulang setelah delay singkat
-  const tglEl = inp && inp.closest('.grid-input') && inp.closest('.grid-input').querySelector('input[type="date"]');
+  // Hanya fokus ke input tanggal — sort dilakukan setelah tanggal diisi
   setTimeout(function(){
-    if(tglEl) tglEl.focus();
     renderRows();
+    const tglEl = document.querySelector('#pr-row-'+i+' input[type="date"]');
+    if(tglEl) tglEl.focus();
   }, 80);
 }
 
@@ -17005,12 +17097,13 @@ function batalSinkronST(){
           <h3 style="font-size:13px">📋 Data Presensi — <span id="periodeLabel" style="color:var(--teal)"></span></h3>
         </div>
         <div class="card-body" style="padding:12px 20px">
-          <div style="display:grid;grid-template-columns:1.7fr 130px 110px 110px 88px 28px;gap:6px;margin-bottom:4px;padding:0 8px">
+          <div style="display:grid;grid-template-columns:1.7fr 130px 110px 110px 88px 36px 28px;gap:6px;margin-bottom:4px;padding:0 8px">
             <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Nama Pegawai</span>
             <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Tanggal</span>
             <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Jam Masuk</span>
             <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Jam Pulang</span>
             <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Jam Kerja</span>
+            <span></span>
             <span></span>
           </div>
           <div id="rowsContainer"></div>
