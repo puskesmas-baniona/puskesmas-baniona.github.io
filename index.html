@@ -7873,6 +7873,74 @@ function rpkFinalizeNomor(bulan, tahun){
   rpkRefresh();
 }
 
+// ── Batal Finalisasi Nomor Surat RPK ─────────────────────────────────
+// Menghapus nomor surat (nomorST, nomorUrut) dari semua jadwal dan ST
+// bulan ini yang BELUM dikirim. Jadwal yang sudah dikirim tetap terkunci.
+function rpkBatalFinalisasi(bulan, tahun){
+  const NAMA_BLN=(typeof NAMA_BULAN_ID!=='undefined'?NAMA_BULAN_ID:['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']);
+  const namaBulan=NAMA_BLN[bulan-1];
+
+  // Kumpulkan jadwal bulan ini
+  const jadwalBulan=(db.jadwal||[]).filter(j=>{
+    if(!j.tanggal) return false;
+    const d=new Date(j.tanggal+'T00:00:00');
+    return d.getMonth()+1===bulan && d.getFullYear()===tahun;
+  });
+
+  if(!jadwalBulan.length){ showToast('Tidak ada jadwal untuk bulan ini','error'); return; }
+
+  // Pisahkan: terkunci (sudah dikirim) vs bisa dibatalkan
+  const jadwalBebas=[];
+  const jadwalTerkunci=[];
+  jadwalBulan.forEach(j=>{
+    const stTerkait=(db.suratTugas||[]).filter(s=>s.jadwalId===j.id);
+    const sudahDikirim=stTerkait.some(s=>s.dikirimAt&&s.nomorST&&s.nomorST.trim());
+    if(sudahDikirim) jadwalTerkunci.push(j);
+    else jadwalBebas.push(j);
+  });
+
+  // Hanya yang sudah punya nomor yang relevan
+  const sudahNomor=jadwalBebas.filter(j=>{
+    const stTerkait=(db.suratTugas||[]).filter(s=>s.jadwalId===j.id);
+    return stTerkait.some(s=>s.nomorST&&s.nomorST.trim());
+  });
+
+  if(!sudahNomor.length){
+    showToast(`Tidak ada nomor surat yang bisa dibatalkan di bulan ${namaBulan} ${tahun} (yang belum dikirim sudah tidak bernomor).`,'error');
+    return;
+  }
+
+  const infoTerkunci=jadwalTerkunci.length>0
+    ? `\n⚠️ ${jadwalTerkunci.length} jadwal sudah dikirim & terkunci — nomornya tidak akan dihapus.`
+    : '';
+
+  const konfirmasi=confirm(
+    `Batal Finalisasi Nomor Surat — ${namaBulan} ${tahun}\n\n` +
+    `${sudahNomor.length} jadwal (belum dikirim) akan dihapus nomornya.${infoTerkunci}\n\n` +
+    `Lanjutkan?`
+  );
+  if(!konfirmasi) return;
+
+  // Hapus nomorST & nomorUrut dari jadwal bebas dan ST terkaitnya
+  let totalHapus=0;
+  jadwalBebas.forEach(j=>{
+    j.nomorUrut='';
+    j.nomorSurat='';
+    const stTerkait=(db.suratTugas||[]).filter(s=>s.jadwalId===j.id);
+    stTerkait.forEach(st=>{
+      if(st.nomorST||st.nomorUrut){
+        st.nomorST='';
+        st.nomorUrut='';
+        totalHapus++;
+      }
+    });
+  });
+
+  saveDB();
+  showToast(`↩ Batal Finalisasi selesai — ${totalHapus} nomor surat dihapus${jadwalTerkunci.length>0?' | '+jadwalTerkunci.length+' terkunci (tidak berubah)':''}`, 'success');
+  rpkRefresh();
+}
+
 // ── Geser Tanggal Kegiatan (tanpa mengubah nomor surat) ──────────────
 // Fungsi khusus untuk mengubah tanggal kegiatan saja.
 // Nomor surat yang sudah ada TIDAK akan berubah.
@@ -8336,6 +8404,7 @@ function renderRPK(){
       <div style="display:flex;gap:5px;flex-wrap:wrap;margin-left:auto">
         <button class="btn btn-primary btn-sm" onclick="previewRPK()" style="font-size:12px;padding:5px 9px;white-space:nowrap" title="Cetak Rencana Pelaksanaan Kegiatan">🖨 Cetak RPK</button>
         <button class="btn btn-outline btn-sm" onclick="rpkFinalizeNomor(parseInt(document.getElementById('rpk-bulan').value),parseInt(document.getElementById('rpk-tahun').value))" style="border-color:#15803d;color:#15803d;font-weight:600;font-size:12px;padding:5px 9px;white-space:nowrap" title="Nomori ulang semua jadwal bulan ini">📋 Finalisasi</button>
+        <button class="btn btn-outline btn-sm" onclick="rpkBatalFinalisasi(parseInt(document.getElementById('rpk-bulan').value),parseInt(document.getElementById('rpk-tahun').value))" style="border-color:#b45309;color:#b45309;font-weight:600;font-size:12px;padding:5px 9px;white-space:nowrap" title="Hapus nomor surat dari semua jadwal bulan ini yang belum dikirim">↩ Batal Finalisasi</button>
         <button class="btn btn-outline btn-sm" onclick="rpkPerbaruiData()" style="border-color:#0891b2;color:#0891b2;font-weight:600;font-size:12px;padding:5px 9px;white-space:nowrap" title="Sinkronkan data pegawai & lokasi terbaru ke semua jadwal dan surat tugas bulan ini">🔄 Perbarui</button>
         <button class="btn btn-outline btn-sm" onclick="rpkHapusSemua()" style="border-color:#c0392b;color:#c0392b;font-weight:600;font-size:12px;padding:5px 9px;white-space:nowrap" title="Hapus semua jadwal & surat tugas bulan ini">🗑 Hapus</button>
       </div>
