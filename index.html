@@ -1164,9 +1164,17 @@ function saveDB(){
       const snapshot=JSON.stringify(db);
       // Lewati jika tidak ada perubahan sama sekali sejak penyimpanan terakhir
       if(snapshot===_lastSavedSnapshot) return;
-      if(snapshot.length>900000 && !window._warnBesar){
-        window._warnBesar=true;
-        try{ showToast('⚠️ Ukuran data mendekati batas Cloud (1 MB). Segera lakukan Backup & hubungi admin.','error'); }catch(e){}
+      // Batas 1 MB Firestore berlaku PER DOKUMEN (data sudah dipecah per bulan) — cek dokumen terbesar
+      if(!window._warnBesar){
+        let _maxDoc=0;
+        try{ Object.values(_splitDB(db)).forEach(x=>{ if(x.length>_maxDoc) _maxDoc=x.length; }); }catch(e){}
+        if(_maxDoc>800000){
+          window._warnBesar=true;
+          try{ showToast('⚠️ Satu dokumen bulanan mendekati batas Cloud (1 MB). Lakukan Backup & hubungi admin.','error'); }catch(e){}
+        } else if(snapshot.length>4000000){
+          window._warnBesar=true;
+          try{ showToast('⚠️ Penyimpanan browser hampir penuh (batas ±5 MB). Lakukan Backup & arsipkan data lama.','error'); }catch(e){}
+        }
       }
       const ind=document.getElementById('save-indicator');
       if(ind){ ind.className='saving'; ind.innerHTML='⏳ Menyimpan…'; }
