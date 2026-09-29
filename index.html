@@ -26,7 +26,98 @@
   };
   firebase.initializeApp(_fbConfig);
   window._fbDb = firebase.firestore();
-  window._FB_DOC = window._fbDb.collection('puskesmas-baniona').doc('data-utama');
+  // ═══ PENYIMPANAN TERPECAH (mengatasi batas 1 MB Firestore) ═══
+  // Dokumen lama 'data-utama' TIDAK PERNAH diubah/dihapus (jadi cadangan).
+  // Data baru: split_core (pegawai, lokasi, dll) + split_YYYY_MM (jadwal & ST per bulan).
+  function _splitDB(d){
+    const core=Object.assign({},d); delete core.jadwal; delete core.suratTugas;
+    const bln=t=>/^\d{4}-\d{2}/.test(t||'')?t.slice(0,7).replace('-','_'):'lain';
+    const parts={}; const P=k=>parts[k]||(parts[k]={jadwal:[],suratTugas:[]});
+    const jm=new Map(); (d.jadwal||[]).forEach(j=>{ jm.set(j.id,j); P(bln(j.tanggal)).jadwal.push(j); });
+    (d.suratTugas||[]).forEach(x=>{ const jj=x.jadwalId!=null?jm.get(x.jadwalId):null; P(bln(x.tanggal||(jj&&jj.tanggal))).suratTugas.push(x); });
+    const out={split_core:JSON.stringify(core)};
+    Object.keys(parts).forEach(k=>{ out['split_'+k]=JSON.stringify(parts[k]); });
+    return out;
+  }
+  function _mergeDB(strs){
+    let core={}, jadwal=[], st=[];
+    Object.keys(strs).forEach(id=>{
+      const o=JSON.parse(strs[id]);
+      if(id==='split_core') core=o; else { jadwal=jadwal.concat(o.jadwal||[]); st=st.concat(o.suratTugas||[]); }
+    });
+    jadwal.sort((a,b)=>a.id-b.id); st.sort((a,b)=>a.id-b.id);
+    return Object.assign({},core,{jadwal:jadwal,suratTugas:st});
+  }
+  function _buatFBSplit(col, oldDoc){
+    const META='split_meta'; let _ok=false; const _cache={};
+    const fake=obj=>({exists:true,data:()=>({data:JSON.stringify(obj)})});
+    const strsFrom=docs=>{ const m={}; docs.forEach(x=>{ if(x.id.indexOf('split_')===0 && x.id!==META){ m[x.id]=x.data().data; } }); return m; };
+    async function migrasi(dbObj){
+      const parts=_splitDB(dbObj), ts=new Date().toISOString();
+      const ids=Object.keys(parts), b=window._fbDb.batch();
+      ids.forEach(id=>b.set(col.doc(id),{data:parts[id],updatedAt:ts}));
+      await b.commit();
+      // Verifikasi: baca ulang dari Cloud, hitung, bandingkan dengan sumber
+      const qs=await col.get(); const back=_mergeDB(strsFrom(qs.docs));
+      const nJ=(dbObj.jadwal||[]).length, nS=(dbObj.suratTugas||[]).length;
+      if(back.jadwal.length!==nJ || back.suratTugas.length!==nS || (back.pegawai||[]).length!==(dbObj.pegawai||[]).length)
+        throw new Error('Verifikasi gagal: jadwal '+back.jadwal.length+'/'+nJ+', ST '+back.suratTugas.length+'/'+nS);
+      await col.doc(META).set({jadwal:nJ,suratTugas:nS,updatedAt:ts});
+      ids.forEach(id=>_cache[id]=parts[id]);
+      _ok=true;
+      alert('✅ Migrasi berhasil.\nJadwal: '+nJ+'\nSurat Tugas: '+nS+'\nPegawai: '+(dbObj.pegawai||[]).length+'\nLokasi: '+(dbObj.lokasi||[]).length+'\n\nCocokkan dengan patokan (ST 1128, Pegawai 70, Lokasi 136).');
+    }
+    return {
+      get: async function(){
+        const meta=await col.doc(META).get();
+        if(meta.exists){
+          const qs=await col.get(); const m=strsFrom(qs.docs);
+          Object.keys(m).forEach(k=>_cache[k]=m[k]); _ok=true;
+          return fake(_mergeDB(m));
+        }
+        // Belum pernah migrasi → sumber = data di browser ini (admin), bukan Cloud lama yang usang
+        try{
+          const raw=localStorage.getItem('st_app_db_v2'); const l=raw?JSON.parse(raw):null;
+          if(l && Array.isArray(l.jadwal) && l.jadwal.length){
+            const msg='MIGRASI PENYIMPANAN\n\nData di perangkat ini:\n• Jadwal: '+l.jadwal.length+'\n• Surat Tugas: '+(l.suratTugas||[]).length+'\n• Pegawai: '+(l.pegawai||[]).length+'\n• Lokasi: '+(l.lokasi||[]).length+'\n\nJalankan migrasi HANYA jika ini perangkat admin dengan data paling lengkap (patokan: ST 1128, Pegawai 70, Lokasi 136) dan backup sudah dibuat.\n\nLanjutkan?';
+            if(confirm(msg)){
+              try{ await migrasi(l); return fake(l); }
+              catch(e){ console.error('[Migrasi]',e); alert('❌ Migrasi dibatalkan: '+e.message+'\nData lama tidak berubah.'); }
+            }
+          }
+        }catch(e){ console.error(e); }
+        return oldDoc.get(); // fallback baca-saja dari dokumen lama
+      },
+      set: function(p){
+        if(!_ok) return Promise.reject(new Error('Belum migrasi — tidak menyimpan ke Cloud'));
+        const obj=JSON.parse(p.data), parts=_splitDB(obj), ts=new Date().toISOString();
+        const nJ=(obj.jadwal||[]).length, nS=(obj.suratTugas||[]).length;
+        return col.doc(META).get().then(m=>{
+          const md=m.exists?m.data():null;
+          if(md && md.jadwal>20 && nJ<md.jadwal*0.5){ // pengaman: cegah data kosong/menyusut drastis menimpa Cloud
+            console.warn('[Split] Simpan ditolak: jadwal menyusut drastis',nJ,'<',md.jadwal);
+            return Promise.reject(new Error('Ditolak: jumlah jadwal menyusut drastis'));
+          }
+          const b=window._fbDb.batch(); const baru={};
+          Object.keys(parts).forEach(id=>{ if(_cache[id]!==parts[id]){ b.set(col.doc(id),{data:parts[id],updatedAt:ts}); baru[id]=parts[id]; } });
+          Object.keys(_cache).forEach(id=>{ if(!(id in parts) && id!=='split_core'){ const e=JSON.stringify({jadwal:[],suratTugas:[]}); if(_cache[id]!==e){ b.set(col.doc(id),{data:e,updatedAt:ts}); baru[id]=e; } } });
+          if(!Object.keys(baru).length) return;
+          b.set(col.doc(META),{jadwal:nJ,suratTugas:nS,updatedAt:ts});
+          return b.commit().then(()=>{ Object.assign(_cache,baru); });
+        });
+      },
+      onSnapshot: function(cb,errCb){
+        return col.onSnapshot(qs=>{
+          if(!_ok || qs.metadata.hasPendingWrites) return;
+          const m=strsFrom(qs.docs); if(!Object.keys(m).length) return;
+          Object.keys(m).forEach(k=>_cache[k]=m[k]);
+          cb(fake(_mergeDB(m)));
+        },errCb);
+      }
+    };
+  }
+  window._FB_OLD = window._fbDb.collection('puskesmas-baniona').doc('data-utama');
+  window._FB_DOC = _buatFBSplit(window._fbDb.collection('puskesmas-baniona'), window._FB_OLD);
   console.log('[Firebase] Terhubung ke Firestore ✅');
 </script>
 <!-- SheetJS for Excel parsing -->
@@ -1073,6 +1164,10 @@ function saveDB(){
       const snapshot=JSON.stringify(db);
       // Lewati jika tidak ada perubahan sama sekali sejak penyimpanan terakhir
       if(snapshot===_lastSavedSnapshot) return;
+      if(snapshot.length>900000 && !window._warnBesar){
+        window._warnBesar=true;
+        try{ showToast('⚠️ Ukuran data mendekati batas Cloud (1 MB). Segera lakukan Backup & hubungi admin.','error'); }catch(e){}
+      }
       const ind=document.getElementById('save-indicator');
       if(ind){ ind.className='saving'; ind.innerHTML='⏳ Menyimpan…'; }
       // Simpan ke localStorage sebagai cache offline
@@ -1096,10 +1191,14 @@ function saveDB(){
           })
           .catch(err=>{
             console.error('[Firebase] Gagal simpan ke Firestore:', err);
-            // Tetap anggap tersimpan karena sudah ada di localStorage
+            // Data hanya ada di perangkat ini — beri tahu pengguna (jangan diam-diam)
             if(ind){
-              ind.className='saved'; ind.innerHTML='💾 Tersimpan Lokal';
-              setTimeout(()=>{ ind.className=''; ind.innerHTML=''; },2500);
+              ind.className='saved'; ind.innerHTML='⚠️ GAGAL sync Cloud (hanya lokal)';
+              setTimeout(()=>{ ind.className=''; ind.innerHTML=''; },6000);
+            }
+            if(!window._warnCloudGagal || Date.now()-window._warnCloudGagal>60000){
+              window._warnCloudGagal=Date.now();
+              try{ showToast('⚠️ Data BELUM tersimpan ke Cloud. Jangan tutup/refresh dulu; lakukan Backup.','error'); }catch(e){}
             }
           });
       } else {
@@ -1110,6 +1209,7 @@ function saveDB(){
       }
     }catch(e){
       console.error('Gagal menyimpan data:', e);
+      try{ showToast('⚠️ Gagal menyimpan ke penyimpanan browser (penuh?). Lakukan Backup sekarang.','error'); }catch(_e){}
       const ind=document.getElementById('save-indicator');
       if(ind){ ind.className=''; ind.innerHTML=''; }
     }
@@ -1139,6 +1239,32 @@ function _applyMigrasi(parsed){
   delete parsed.subKegiatan;
   delete parsed.nextSubKegiatan;
   if(!parsed.lpdList) parsed.lpdList=[];
+  // ── PERBAIKAN: sinkronkan counter ID & perbaiki ID jadwal ganda ──
+  // Penyebab "sisip jadwal menimpa kegiatan": nextJadwal tertinggal dari ID terbesar
+  // (mis. setelah sinkron/restore) sehingga jadwal baru memakai ID yang sudah ada.
+  try{
+    if(Array.isArray(parsed.jadwal)){
+      let mx=0; parsed.jadwal.forEach(j=>{ if(Number(j.id)>mx) mx=Number(j.id); });
+      const seen=new Set();
+      parsed.jadwal.forEach(j=>{
+        if(seen.has(j.id)){
+          const oldId=j.id; const newId=++mx; j.id=newId;
+          (parsed.suratTugas||[]).forEach(st=>{
+            if(st.jadwalId===oldId && st.tanggal===j.tanggal && st.maksud===j.maksud && st.lokasiId===j.lokasiId
+               && !parsed.jadwal.some(o=>o!==j && o.id===oldId && o.tanggal===st.tanggal && o.maksud===st.maksud && o.lokasiId===st.lokasiId)){
+              st.jadwalId=newId;
+            }
+          });
+        }
+        seen.add(j.id);
+      });
+      if(!parsed.nextJadwal || parsed.nextJadwal<=mx) parsed.nextJadwal=mx+1;
+    }
+    if(Array.isArray(parsed.suratTugas)){
+      let mxs=0; parsed.suratTugas.forEach(x=>{ if(Number(x.id)>mxs) mxs=Number(x.id); });
+      if(!parsed.nextST || parsed.nextST<=mxs) parsed.nextST=mxs+1;
+    }
+  }catch(e){ console.error('Gagal sinkron counter ID:', e); }
   return parsed;
 }
 
@@ -6603,6 +6729,7 @@ function simpanJadwalForm(id){
 
     // Simpan sebagai 1 jadwal — perbedaan tempat berangkat tidak memisahkan jadwal,
     // biaya perjalanan diinput terpisah di menu Biaya Perjalanan Dinas.
+    { const _mx=(db.jadwal||[]).reduce((m,x)=>Math.max(m,Number(x.id)||0),0); if(!db.nextJadwal||db.nextJadwal<=_mx) db.nextJadwal=_mx+1; }
     const jBaru={id:db.nextJadwal++,tanggal,maksud,lokasiId,pegawaiUtamaId,pengikutIds,lama,transport,biayaTransport,nomorUrut:'',nomorSurat:'',nomorSuratManual:nomorSuratManual||undefined,dibuat:localToday(),tipeTanggal,bulanDisesuaikan:bulanDisesuaikan||undefined,tahunDisesuaikan:tahunDisesuaikan||undefined,keteranganDisesuaikan:keteranganDisesuaikan||undefined};
     db.jadwal.push(jBaru);
     buatObjSTdariJadwal(jBaru).forEach(st=>db.suratTugas.push(st));
