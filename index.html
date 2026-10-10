@@ -9511,7 +9511,8 @@ function renderMatrix(){
 
   document.getElementById('topbar-actions').innerHTML=`
     <button class="btn btn-primary btn-sm" onclick="cetakMatrixGrid(parseInt(document.getElementById('matrix-bulan').value),parseInt(document.getElementById('matrix-tahun').value))" style="background:#c8960c;font-size:12px;padding:6px 10px">🖨️ <span class="hide-xs">Cetak </span>Matrix</button>
-    <button class="btn btn-primary btn-sm" onclick="cetakLaporanMatrix(parseInt(document.getElementById('matrix-bulan').value),parseInt(document.getElementById('matrix-tahun').value))" style="font-size:12px;padding:6px 10px">📄 <span class="hide-xs">Cetak </span>Laporan</button>`;
+    <button class="btn btn-primary btn-sm" onclick="cetakLaporanMatrix(parseInt(document.getElementById('matrix-bulan').value),parseInt(document.getElementById('matrix-tahun').value))" style="font-size:12px;padding:6px 10px">📄 <span class="hide-xs">Cetak </span>Laporan</button>
+    <button class="btn btn-primary btn-sm" onclick="cetakLaporanMatrix(parseInt(document.getElementById('matrix-bulan').value),parseInt(document.getElementById('matrix-tahun').value),true)" style="font-size:12px;padding:6px 10px;background:#475569">📄 <span class="hide-xs">Laporan </span>Tanpa Biaya</button>`;
 
   const el=document.getElementById('panel-matrix');
   el.innerHTML=`
@@ -9808,7 +9809,7 @@ function matrixRefresh(){
 // ═══════════════════════════════════════════════
 // CETAK LAPORAN MATRIX (PDF — Kertas F4 — Elegan)
 // ═══════════════════════════════════════════════
-function cetakLaporanMatrix(bulan,tahun){
+function cetakLaporanMatrix(bulan,tahun,tanpaBiaya){
   if(!db.jadwal) db.jadwal=[];
   const _e=function(t){ t=(t==null?'':String(t)); return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
 
@@ -9850,24 +9851,18 @@ function cetakLaporanMatrix(bulan,tahun){
     const mine=jadwalBulan.filter(function(j){ return [j.pegawaiUtamaId].concat(j.pengikutIds||[]).some(function(id){return g.ids.has(id);}); })
       .sort(function(a,b){ return a.tanggal>b.tanggal?1:(a.tanggal<b.tanggal?-1:0); });
     if(!mine.length) return;
-    // kelompokkan per lokasi
-    const lokMap={}, urut=[];
+    // satu baris per kegiatan, urut tanggal (lokasi yang sama tetap dipisah per tanggal)
+    const BLN=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
     let biaya=0;
-    mine.forEach(function(j){
+    const lokHtml=mine.map(function(j){
       const lok=db.lokasi.find(function(l){return l.id===j.lokasiId;});
-      const key=lok?lok.id:('x'+j.lokasiId);
-      if(!lokMap[key]){ lokMap[key]={nama:lok?(lok.nama||'-'):'-',tgl:[]}; urut.push(key); }
-      lokMap[key].tgl.push(parseInt(j.tanggal.slice(8,10),10));
       const _pid=[j.pegawaiUtamaId].concat(j.pengikutIds||[]).find(function(id){return g.ids.has(id);});
       biaya+=biayaPegawaiDiJadwal(j,_pid);
-    });
-    const lokHtml=urut.map(function(k){
-      const o=lokMap[k];
-      return '• '+_e(o.nama)+' — <b>'+o.tgl.length+'×</b> <span class="t">(tgl '+o.tgl.join(', ')+')</span>';
+      return '<span class="t">'+parseInt(j.tanggal.slice(8,10),10)+' '+BLN[parseInt(j.tanggal.slice(5,7),10)-1]+'</span> — '+_e(lok?(lok.nama||'-'):'-');
     }).join('<br>');
     no++; totalKeg+=mine.length; totalBiaya+=biaya;
     rows+='<tr><td class="c">'+no+'</td><td><b>'+_e(p.nama)+'</b><br><span class="t">'+_e(p.jabatan||'')+'</span></td>'
-      +'<td class="c big">'+mine.length+'</td><td>'+lokHtml+'</td><td class="r b">'+fmtRp(biaya)+'</td></tr>';
+      +'<td class="c big">'+mine.length+'</td><td>'+lokHtml+'</td>'+(tanpaBiaya?'':'<td class="r b">'+fmtRp(biaya)+'</td>')+'</tr>';
   });
 
   const tglCetak=formatDate(new Date().toISOString().slice(0,10));
@@ -9892,9 +9887,9 @@ function cetakLaporanMatrix(bulan,tahun){
   const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Laporan Kegiatan Pegawai — '+NAMA_BULAN_ID[bulan-1]+' '+tahun+'</title><style>'+css+'</style></head><body>'
     +'<div class="toolbar"><button class="btn-print" onclick="window.print()">🖨️ Cetak / Simpan sebagai PDF</button></div>'
     +'<h3>Laporan Kegiatan Per Pegawai</h3><div class="p">Bulan '+NAMA_BULAN_ID[bulan-1]+' '+tahun+'</div>'
-    +'<table><thead><tr><th style="width:28px">No</th><th style="width:150px">Nama Pegawai</th><th style="width:60px">Jumlah<br>Kegiatan</th><th>Lokasi Kegiatan</th><th style="width:96px">Total Biaya</th></tr></thead>'
+    +'<table><thead><tr><th style="width:28px">No</th><th style="width:'+(tanpaBiaya?'270px':'150px')+'">Nama Pegawai</th><th style="width:60px">Jumlah<br>Kegiatan</th><th>Lokasi Kegiatan</th>'+(tanpaBiaya?'':'<th style="width:96px">Total Biaya</th>')+'</tr></thead>'
     +'<tbody>'+rows+'</tbody>'
-    +'<tfoot><tr><td colspan="2" class="r">TOTAL</td><td class="c">'+totalKeg+'</td><td></td><td class="r">'+fmtRp(totalBiaya)+'</td></tr></tfoot></table>'
+    +'<tfoot><tr><td colspan="2" class="r">TOTAL</td><td class="c">'+totalKeg+'</td><td></td>'+(tanpaBiaya?'':'<td class="r">'+fmtRp(totalBiaya)+'</td>')+'</tr></tfoot></table>'
     +(tanpaST>0?'<div class="cat">* '+tanpaST+' kegiatan bulan ini belum memiliki Surat Tugas, tidak dihitung.</div>':'')
     +'<div class="foot">Dicetak otomatis oleh Sistem Terpadu UPTD Puskesmas Baniona · '+tglCetak+'</div></body></html>';
 
