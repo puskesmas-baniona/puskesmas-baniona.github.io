@@ -9810,148 +9810,99 @@ function matrixRefresh(){
 // ═══════════════════════════════════════════════
 function cetakLaporanMatrix(bulan,tahun){
   if(!db.jadwal) db.jadwal=[];
-  const jadwalBulan=(db.jadwal||[]).filter(j=>{
+  const _e=function(t){ t=(t==null?'':String(t)); return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+
+  // Sama dengan tampilan Matrix: hanya kegiatan yang sudah memiliki Surat Tugas
+  const stJadwalIds=new Set((db.suratTugas||[]).map(function(s){return s.jadwalId;}).filter(Boolean));
+  const jadwalSemua=(db.jadwal||[]).filter(function(j){
     const d=new Date(j.tanggal+'T00:00:00');
     return d.getMonth()+1===bulan && d.getFullYear()===tahun;
   });
-  if(!jadwalBulan.length){ showToast('Belum ada data untuk periode ini','error'); return; }
+  const jadwalBulan=jadwalSemua.filter(function(j){ return stJadwalIds.has(j.id); });
+  const tanpaST=jadwalSemua.length-jadwalBulan.length;
+  if(!jadwalBulan.length){ showToast('Belum ada kegiatan ber-Surat Tugas untuk periode ini','error'); return; }
 
   const pegIds=new Set();
-  jadwalBulan.forEach(j=>{ pegIds.add(j.pegawaiUtamaId); (j.pengikutIds||[]).forEach(id=>pegIds.add(id)); });
-  const pegawaiList=db.pegawai.filter(p=>pegIds.has(p.id)).sort((a,b)=>a.nama.localeCompare(b.nama));
+  jadwalBulan.forEach(function(j){ pegIds.add(j.pegawaiUtamaId); (j.pengikutIds||[]).forEach(function(id){pegIds.add(id);}); });
+  // Gabungkan data pegawai ganda (nama sama / NIP sama, ID berbeda) agar tidak tercetak dobel
+  const _norm=function(t){ return String(t||'').toLowerCase().replace(/\s+/g,' ').trim(); };
+  const grupPeg={}; const grupUrut=[];
+  db.pegawai.filter(function(p){return pegIds.has(p.id);}).forEach(function(p){
+    const nip=String(p.nip||'').replace(/\D/g,'');
+    const key=_norm(p.nama);
+    const g=grupPeg[key]||(grupPeg[key]={p:p,ids:new Set()});
+    if(!grupUrut.includes(key)) grupUrut.push(key);
+    g.ids.add(p.id);
+  });
+  const pegawaiList=grupUrut.map(function(k){return grupPeg[k];}).sort(function(a,b){return a.p.nama.localeCompare(b.p.nama);});
 
-  // Hitung biaya per pegawai dengan membaca biayaPerTempat jika sudah diinput
   function biayaPegawaiDiJadwal(j, pid){
-    const p=db.pegawai.find(x=>x.id===pid);
-    const _snap=(j.snapshotPegawai||[]).find(x=>x.id===pid);
+    const p=db.pegawai.find(function(x){return x.id===pid;});
+    const _snap=(j.snapshotPegawai||[]).find(function(x){return x.id===pid;});
     const tmpKey=(_snap&&_snap.tempatBerangkat)||(p&&p.tempatBerangkat)||'UPTD Puskesmas Baniona';
     return (j.biayaPerTempat&&j.biayaPerTempat[tmpKey]!==undefined)
       ?j.biayaPerTempat[tmpKey]:(j.biayaTransport||0);
   }
-  function totalTransJadwal(j){
-    const allIds=[j.pegawaiUtamaId,...(j.pengikutIds||[])].filter(Boolean);
-    if(j.biayaPerTempat&&Object.keys(j.biayaPerTempat).length){
-      const grupTempat=groupPegawaiByTempat(allIds);
-      return Object.keys(grupTempat).reduce((s,tmp)=>{
-        const biayaSatuan=j.biayaPerTempat[tmp]!==undefined?j.biayaPerTempat[tmp]:(j.biayaTransport||0);
-        return s+biayaSatuan*grupTempat[tmp].length;
-      },0);
-    }
-    return (j.biayaTransport||0)*new Set(allIds).size;
-  }
-  const grandTotal=jadwalBulan.reduce((sum,j)=>sum+totalTransJadwal(j),0);
 
-  // Susun data per pegawai: daftar kegiatan (tanggal + lokasi) miliknya, jumlah kegiatan, total pendapatan
-  const dataPegawai=pegawaiList.map(p=>{
-    const items=jadwalBulan
-      .filter(j=>[j.pegawaiUtamaId,...(j.pengikutIds||[])].includes(p.id))
-      .sort((a,b)=>a.tanggal>b.tanggal?1:-1)
-      .map(j=>{
-        const lok=db.lokasi.find(l=>l.id===j.lokasiId);
-        return { tanggal:formatDate(j.tanggal), lokasi:lok?(lok.nama||'-'):'-', maksud:j.maksud||'-', biaya:biayaPegawaiDiJadwal(j,p.id) };
-      });
-    const total=items.reduce((s,it)=>s+it.biaya,0);
-    return { pegawai:p, items, jumlahKegiatan:items.length, total };
-  }).filter(d=>d.items.length>0);
-
-  const bodyRows=dataPegawai.map((d,pegIdx)=>{
-    const no=pegIdx+1;
-    // Alternating row color per pegawai (bukan per baris tr)
-    const rowBg=pegIdx%2===0?'#e8f5f0':'#ffffff';
-    const rowBgAlt=pegIdx%2===0?'#d4ece5':'#f0f7f5';
-    return d.items.map((it,idx)=>{
-      // Baris pertama dan genap dalam satu pegawai diberi warna sedikit berbeda
-      const thisBg=idx%2===0?rowBg:rowBgAlt;
-      let row=`<tr style="background:${thisBg}">`;
-      if(idx===0){
-        row+=`<td class="col-no" rowspan="${d.items.length}" style="background:${rowBg};vertical-align:middle">
-          <span class="no-badge" style="background:#1a6b6b;color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:8.5pt;font-weight:700;font-family:'Segoe UI',sans-serif">${no}</span>
-        </td>`;
-        row+=`<td class="col-nama" rowspan="${d.items.length}" style="background:${rowBg};vertical-align:middle"><b>${d.pegawai.nama}</b><br><span class="sub">${d.pegawai.jabatan||''}</span></td>`;
-      }
-      row+=`<td class="col-tgl" style="background:${thisBg}">${it.tanggal}</td>`;
-      row+=`<td class="col-lok" style="background:${thisBg}">📍 ${it.lokasi}<br><span class="sub">${it.maksud}</span></td>`;
-      if(idx===0){
-        row+=`<td class="col-jml" rowspan="${d.items.length}" style="background:${rowBg};vertical-align:middle">${d.jumlahKegiatan}</td>`;
-        row+=`<td class="col-total" rowspan="${d.items.length}" style="background:${rowBg};vertical-align:middle">${fmtRp(d.total)}</td>`;
-      }
-      row+='</tr>';
-      return row;
-    }).join('');
-  }).join('');
+  let totalKeg=0, totalBiaya=0, no=0, rows='';
+  pegawaiList.forEach(function(g){
+    const p=g.p;
+    const mine=jadwalBulan.filter(function(j){ return [j.pegawaiUtamaId].concat(j.pengikutIds||[]).some(function(id){return g.ids.has(id);}); })
+      .sort(function(a,b){ return a.tanggal>b.tanggal?1:(a.tanggal<b.tanggal?-1:0); });
+    if(!mine.length) return;
+    // kelompokkan per lokasi
+    const lokMap={}, urut=[];
+    let biaya=0;
+    mine.forEach(function(j){
+      const lok=db.lokasi.find(function(l){return l.id===j.lokasiId;});
+      const key=lok?lok.id:('x'+j.lokasiId);
+      if(!lokMap[key]){ lokMap[key]={nama:lok?(lok.nama||'-'):'-',tgl:[]}; urut.push(key); }
+      lokMap[key].tgl.push(parseInt(j.tanggal.slice(8,10),10));
+      const _pid=[j.pegawaiUtamaId].concat(j.pengikutIds||[]).find(function(id){return g.ids.has(id);});
+      biaya+=biayaPegawaiDiJadwal(j,_pid);
+    });
+    const lokHtml=urut.map(function(k){
+      const o=lokMap[k];
+      return '• '+_e(o.nama)+' — <b>'+o.tgl.length+'×</b> <span class="t">(tgl '+o.tgl.join(', ')+')</span>';
+    }).join('<br>');
+    no++; totalKeg+=mine.length; totalBiaya+=biaya;
+    rows+='<tr><td class="c">'+no+'</td><td><b>'+_e(p.nama)+'</b><br><span class="t">'+_e(p.jabatan||'')+'</span></td>'
+      +'<td class="c big">'+mine.length+'</td><td>'+lokHtml+'</td><td class="r b">'+fmtRp(biaya)+'</td></tr>';
+  });
 
   const tglCetak=formatDate(new Date().toISOString().slice(0,10));
+  const css='*{margin:0;padding:0;box-sizing:border-box}'
+    +'@page{size:215mm 330mm;margin:14mm 12mm}'
+    +'body{font-family:"Segoe UI",Arial,sans-serif;color:#000;background:#fff;font-size:10pt;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'.toolbar{text-align:center;margin-bottom:12px}'
+    +'.btn-print{background:#1a6b6b;color:#fff;border:none;padding:9px 22px;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer}'
+    +'@media print{.toolbar{display:none!important}}'
+    +'h3{text-align:center;font-size:14pt;color:#0d4444;text-transform:uppercase}'
+    +'.p{text-align:center;font-weight:700;color:#0d4444;margin-bottom:12px}'
+    +'table{border-collapse:collapse;width:100%}thead{display:table-header-group}tr{page-break-inside:avoid}'
+    +'th{background:#1a6b6b;color:#fff;font-size:9pt;text-transform:uppercase;padding:6px;border:1px solid #000}'
+    +'td{border:1px solid #5a7472;padding:6px 8px;vertical-align:top;font-size:10pt}'
+    +'tbody tr:nth-child(even) td{background:#f1f8f6}'
+    +'.c{text-align:center}.r{text-align:right;white-space:nowrap}.b{font-weight:700}.big{font-size:13pt;font-weight:700;color:#0d4444}'
+    +'.t{font-size:8.5pt;color:#444}'
+    +'tfoot td{background:#d7ece8;font-weight:700;border-top:2px solid #0d4444}'
+    +'.cat{margin-top:10px;font-size:8.5pt;color:#b91c1c}'
+    +'.foot{margin-top:14px;text-align:center;font-size:8pt;color:#555;border-top:1px solid #aaa;padding-top:6px}';
 
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <title>Matrix Kegiatan — ${NAMA_BULAN_ID[bulan-1]} ${tahun}</title>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    @page{ size:215mm 330mm; margin:14mm 12mm; }
-    body{font-family:'Georgia','Times New Roman',serif;color:#000;background:#fff;font-size:10.5pt;line-height:1.45;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
-    .toolbar{display:flex;justify-content:center;gap:10px;margin-bottom:14px}
-    .btn-print{background:linear-gradient(135deg,#1a6b6b 0%,#0d4444 100%);color:#fff;border:none;padding:9px 22px;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;box-shadow:0 3px 12px rgba(26,107,107,.25)}
-    @media print{ .toolbar{display:none!important} body{padding:0} }
-
-    .judul-laporan{text-align:center;margin:18px 0 16px}
-    .judul-laporan h3{font-size:15pt;color:#0d4444;text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px}
-    .judul-laporan .periode{font-size:11pt;color:#0d4444;font-weight:700}
-    .judul-laporan hr{border:none;border-top:1.5px solid #c8960c;width:130px;margin:8px auto 0}
-
-    table{border-collapse:collapse;width:100%;margin-top:6px}
-      thead{display:table-header-group}
-      tbody{page-break-inside:auto}
-      tr{page-break-inside:avoid;page-break-after:auto}
-    thead th{background:#0d4444;color:#fff;font-family:'Segoe UI',sans-serif;font-size:8.6pt;font-weight:700;text-transform:uppercase;letter-spacing:.3px;padding:7px 6px;text-align:center;border:1px solid #000}
-    tbody td{border:1px solid #5a7472;padding:6px 7px;font-size:9.6pt;vertical-align:middle;color:#111}
-    .col-no{text-align:center;width:32px}
-    .col-nama{width:140px}
-    .col-tgl{text-align:center;width:90px;white-space:nowrap}
-    .col-lok{width:auto}
-    .col-jml{text-align:center;width:55px;font-weight:700;color:#000}
-    .col-total{text-align:right;width:110px;font-weight:700;color:#0b5c2c;white-space:nowrap}
-    .sub{font-size:8pt;color:#3d514f;font-weight:600;font-family:'Segoe UI',sans-serif}
-
-    .grand-total-wrap{
-      display:flex;justify-content:space-between;align-items:center;
-      background:#d7ece8;
-      border:1.5px solid #000;border-top:2.5px solid #0d4444;
-      padding:8px 10px;
-      font-family:'Segoe UI',sans-serif;font-size:10pt;font-weight:700;color:#000;
-      page-break-inside:avoid;
-    }
-    .grand-total-wrap .label{text-transform:uppercase;letter-spacing:.4px}
-    .grand-total-wrap .nilai{font-size:11pt;color:#0b5c2c}
-
-    .footer-note{margin-top:20px;text-align:center;font-family:'Segoe UI',sans-serif;font-size:8pt;color:#4a5f5d;border-top:1px solid #9fb5b3;padding-top:8px}
-  </style></head>
-  <body>
-    <div class="toolbar"><button class="btn-print" onclick="window.print()">🖨️ Cetak / Simpan sebagai PDF</button></div>
-
-    <div class="judul-laporan">
-      <h3>Rekap Per Pegawai</h3>
-      <div class="periode">Bulan ${NAMA_BULAN_ID[bulan-1]} ${tahun}</div>
-      <hr/>
-    </div>
-
-    <table>
-      <thead><tr>
-        <th>No</th><th>Nama Pegawai</th><th>Tanggal Kegiatan</th><th>Lokasi &amp; Maksud Kegiatan</th><th>Jml<br>Kegiatan</th><th>Total</th>
-      </tr></thead>
-      <tbody>${bodyRows}</tbody>
-    </table>
-
-    <div class="grand-total-wrap">
-      <span class="label">Total Biaya Perjalanan Dinas</span>
-      <span class="nilai">${fmtRp(grandTotal)}</span>
-    </div>
-
-    <div class="footer-note">Dokumen dicetak otomatis oleh Sistem Terpadu UPTD Puskesmas Baniona pada ${tglCetak}</div>
-  </body></html>`;
+  const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Laporan Kegiatan Pegawai — '+NAMA_BULAN_ID[bulan-1]+' '+tahun+'</title><style>'+css+'</style></head><body>'
+    +'<div class="toolbar"><button class="btn-print" onclick="window.print()">🖨️ Cetak / Simpan sebagai PDF</button></div>'
+    +'<h3>Laporan Kegiatan Per Pegawai</h3><div class="p">Bulan '+NAMA_BULAN_ID[bulan-1]+' '+tahun+'</div>'
+    +'<table><thead><tr><th style="width:28px">No</th><th style="width:150px">Nama Pegawai</th><th style="width:60px">Jumlah<br>Kegiatan</th><th>Lokasi Kegiatan</th><th style="width:96px">Total Biaya</th></tr></thead>'
+    +'<tbody>'+rows+'</tbody>'
+    +'<tfoot><tr><td colspan="2" class="r">TOTAL</td><td class="c">'+totalKeg+'</td><td></td><td class="r">'+fmtRp(totalBiaya)+'</td></tr></tfoot></table>'
+    +(tanpaST>0?'<div class="cat">* '+tanpaST+' kegiatan bulan ini belum memiliki Surat Tugas, tidak dihitung.</div>':'')
+    +'<div class="foot">Dicetak otomatis oleh Sistem Terpadu UPTD Puskesmas Baniona · '+tglCetak+'</div></body></html>';
 
   const win=window.open('','_blank','width=1000,height=1300');
+  if(!win){ alert('Popup diblokir browser. Izinkan popup untuk situs ini.'); return; }
   win.document.write(html);
   win.document.close();
-  setTimeout(()=>win.print(),500);
+  setTimeout(function(){ win.print(); },500);
 }
 
 function cetakMatrixGrid(bulan,tahun){
@@ -11478,9 +11429,9 @@ function _showModalAt(idx){
       const labelLintas=s.usedOtherMonths>0
         ? `(semua bulan: terpakai ${s.ambilLiburCount||0} · bulan lain ${s.usedOtherMonths}h)`
         : `(bulan ini: terpakai ${s.ambilLiburCount||0})`;
-      const manualTag = s.kuotaTambahan>0
+      const manualTag = (s.saldoAwal>0 ? `<span style="color:#7C3AED"> · ⏩ Saldo bulan lalu: +${s.saldoAwal}</span>` : "") + (s.kuotaTambahan>0
         ? `<span style="color:#3B5BDB"> · ➕ Manual: +${s.kuotaTambahan}</span>`
-        : "";
+        : "");
       bonusInfo=`<div style="font-size:11px;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:8px;padding:8px 12px;margin-bottom:14px;color:${warnColor};font-weight:600">
         🌟 Bonus Hadir Cuti Bersama: ${s.bonusCutiTotal} hari${manualTag} &nbsp;|&nbsp; Total: <b>${totalKuotaModal}</b> &nbsp;|&nbsp; Sisa: <b>${sisaTotal}</b> hari
         <div style="font-size:10px;font-weight:500;margin-top:2px;color:#059669">${labelLintas}</div>
@@ -11731,9 +11682,9 @@ function openModalKuota(nama){
   document.getElementById("modalKuotaInfo").innerHTML =
     `<div style="font-weight:700;color:#1E2A4A;margin-bottom:8px">👤 ${esc(nama)}</div>
      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
-       <div style="background:#ECFDF5;border-radius:8px;padding:7px 10px;color:#059669;font-weight:600">🌟 Bonus cuti bersama<br><b style="font-size:16px">${s.bonusCutiTotal||0}</b> hari</div>
+       <div style="background:#ECFDF5;border-radius:8px;padding:7px 10px;color:#059669;font-weight:600">🌟 Bonus cuti bersama<br><b style="font-size:16px">${s.bonusCutiTotal||0}</b> hari${s.saldoAwal>0?` <span style="font-size:10px;color:#7C3AED">+ saldo bulan lalu ${s.saldoAwal}</span>`:""}</div>
        <div style="background:#EEF2FF;border-radius:8px;padding:7px 10px;color:#3B5BDB;font-weight:600">➕ Kuota manual saat ini<br><b style="font-size:16px">${sudahAda}</b> hari</div>
-       <div style="background:#F8FAFF;border-radius:8px;padding:7px 10px;color:#1E2A4A;font-weight:600">📊 Total kuota<br><b style="font-size:16px">${(s.bonusCutiTotal||0)+sudahAda}</b> hari</div>
+       <div style="background:#F8FAFF;border-radius:8px;padding:7px 10px;color:#1E2A4A;font-weight:600">📊 Total kuota<br><b style="font-size:16px">${s.totalKuota!==undefined?s.totalKuota:(s.bonusCutiTotal||0)+sudahAda}</b> hari</div>
        <div style="background:${(s.bonusSisa||0)===0?"#FFF5F5":"#F0FDF4"};border-radius:8px;padding:7px 10px;color:${(s.bonusSisa||0)===0?"#DC2626":"#16A34A"};font-weight:600">✅ Sisa ambil libur<br><b style="font-size:16px">${s.bonusSisa||0}</b> hari</div>
      </div>`;
   document.getElementById("modalKuota").style.display = "flex";
@@ -11754,8 +11705,8 @@ function simpanKuotaManual(){
   const val = Math.max(0, parseInt(document.getElementById("inputKuotaTambah").value)||0);
   const namaSave = _kuotaNama;
   if(val === 0){ delete kuotaManual[namaSave]; } else { kuotaManual[namaSave] = val; }
-  savePresensiDB();
   _summaryMap = buildSummaryMap();
+  savePresensiDB();
   renderSummary();
   closeModalKuota();
   _prNotif("success","✅ Kuota ambil libur diperbarui",`${namaSave} · Kuota manual: ${val} hari · Ketuk Hitung Sekarang jika perlu refresh penuh`);
@@ -11790,6 +11741,47 @@ function getDbKey(bulan, tahun){
 
 // ── Bonus Pool (lintas bulan) ──────────────────────────
 // Format: { "NamaPegawai": { earned: N, usedByMonth: {"2025_01": N, ...} } }
+// ═══ SALDO BONUS CUTI LINTAS BULAN (tersinkron via Firestore, bukan localStorage) ═══
+// Saldo akhir bulan (sisa kuota ambil libur = saldo awal + bonus cuti bersama + kuota manual - terpakai)
+// disimpan di dokumen presensi bulan itu (field bonusSaldo) saat rekap dihitung/disimpan.
+// Bulan berikutnya membaca saldo itu sebagai SALDO AWAL → ikut terbawa di semua perangkat.
+let _prSaldoAwal = {};   // {nama: saldo awal bulan aktif, dari bulan sebelumnya}
+let _prBonusSaldo = null; // saldo akhir bulan aktif (dari data tersimpan, dipakai jika belum dihitung)
+function _prBulanSebelumnya(b,t){ b=+b; t=+t; return b===1?{b:12,t:t-1}:{b:b-1,t:t}; }
+function _prSaldoDariData(d){ return (d && d.bonusSaldo && typeof d.bonusSaldo==='object') ? d.bonusSaldo : null; }
+function _prHitungSaldoAkhir(){
+  const m=buildSummaryMap(), out={};
+  Object.keys(m).forEach(function(n){ out[n]=m[n].bonusSisa||0; });
+  return out;
+}
+// Muat saldo awal dari bulan sebelumnya (Firestore dulu, fallback localStorage)
+function _prMuatSaldoAwal(bulan, tahun){
+  const pv=_prBulanSebelumnya(bulan,tahun);
+  const pvKey=getDbKey(pv.b,pv.t);
+  const forKey=getDbKey(bulan,tahun);
+  const terapkan=function(saldo){
+    if(getDbKey()!==forKey) return; // user sudah pindah bulan
+    const baru=saldo||{};
+    if(JSON.stringify(baru)===JSON.stringify(_prSaldoAwal)) return;
+    _prSaldoAwal=baru;
+    try{
+      invalidateRowCache();
+      if(submitted){ _summaryMap=buildSummaryMap(); renderSummary(); renderKalender(); }
+      else { const t=document.getElementById('tab-rekap'); if(t&&t.classList.contains('active')) renderRekapPraHitung(); }
+    }catch(e){ console.warn('[Saldo] render ulang gagal:', e); }
+  };
+  let lokal=null;
+  try{ lokal=_prSaldoDariData(JSON.parse(localStorage.getItem(pvKey)||"null")); }catch(e){}
+  if(lokal) terapkan(lokal);
+  const fbDoc=_getPresensiFirestoreDoc(pv.b,pv.t);
+  if(fbDoc){
+    fbDoc.get().then(function(snap){
+      if(!snap.exists){ terapkan(lokal); return; }
+      try{ const d=JSON.parse(snap.data().data); terapkan(d&&!d.deleted?_prSaldoDariData(d):null); }catch(e){}
+    }).catch(function(){});
+  }
+}
+
 function getBonusPool(){
   try{ return JSON.parse(localStorage.getItem(BONUS_POOL_KEY)||"{}"); }
   catch(e){ return {}; }
@@ -11820,6 +11812,10 @@ function updateBonusPool(){
 
 // Ambil total sisa bonus lintas bulan untuk seorang pegawai
 function getBonusSisaLintas(nama){
+  const sm=(typeof _summaryMap!=='undefined'&&_summaryMap)?_summaryMap[nama]:null;
+  if(sm && typeof sm.totalKuota==='number'){
+    return {earned:sm.totalKuota, used:sm.ambilLiburCount||0, sisa:sm.bonusSisa||0};
+  }
   const pool=getBonusPool();
   if(!pool[nama]) return {earned:0, used:0, sisa:0};
   const earned = pool[nama].earned||0;
@@ -11839,10 +11835,126 @@ function _getPresensiFirestoreDoc(bulan, tahun){
   return window._fbDb.collection('presensi-baniona').doc(docId);
 }
 
+// ── PENGAMAN SINKRON (anti-timpa data cloud dari perangkat baru) ──
+// Data presensi hanya boleh ditulis ke Firestore setelah:
+//  (a) panel presensi sudah di-init (_prInited), dan
+//  (b) data cloud bulan aktif SUDAH berhasil dibaca (_prCloudReadyKey === kunci bulan aktif).
+// Sebelumnya flushSave() (saat tab disembunyikan/ditutup) menyimpan state kosong bawaan
+// dari perangkat baru dan menimpa dokumen Firestore -> rekap terbaru "hilang" di semua perangkat.
+let _prCloudReadyKey = "";   // kunci bulan yang cloud-nya sudah terbaca
+let _prBaseSavedAt = "";     // savedAt versi cloud yang terakhir kita baca/tulis (untuk deteksi konflik)
+let _prRetryTimer = null;
+let _prOwnSet = {};
+function _prCountRows(d){ return ((d&&d.rows)||[]).filter(function(r){return r&&r.nama&&String(r.nama).trim();}).length; }
+let _prDirtyBeforeReady = false;
+function _prCloudReady(key){ return _prCloudReadyKey === key; }
+
+// Terapkan data cloud ke state & UI (dipakai saat konflik terdeteksi)
+function _prApplyCloudNow(fbData, key){
+  rows=[{nama:"",tanggal:"",jamMasuk:"",jamPulang:""}];
+  submitted=false; published=false; keteranganTH={}; ambilLiburUsed={}; kuotaManual={};
+  tanggalMerah={}; tanggalCuti={};
+  _applyPresensiData(fbData);
+  try{ localStorage.setItem(key, JSON.stringify(fbData)); }catch(e){}
+  _prBaseSavedAt = fbData.savedAt||"";
+  _prLastApplied = fbData.savedAt||"";
+  try{
+    invalidateRowCache();
+    renderTglMerah(); renderTglCuti(); renderRows();
+    if(submitted){ _summaryMap=buildSummaryMap(); renderSummary(); renderKalender(); }
+    else { const t=document.getElementById('tab-rekap'); if(t&&t.classList.contains('active')) renderRekapPraHitung(); }
+    renderKirimStatus(); _updateBtnHitung();
+  }catch(e){ console.warn('[Presensi] render ulang gagal:', e); }
+}
+
+// Tulis ke Firestore secara AMAN (transaksi):
+//  1) tolak jika versi cloud lebih baru dari yang kita baca (perangkat lain sudah menyimpan) → ambil versi cloud
+//  2) tolak/konfirmasi jika jumlah baris presensi menyusut drastis
+//  3) simpan cadangan versi sebelumnya (1x per hari, 7 slot bergilir) di koleksi presensi-baniona-backup
+function _prSafeCloudWrite(fbDoc, data, key, allowShrink){
+  const newCount=_prCountRows(data);
+  let prevForBackup=null;
+  _prOwnSave = data.savedAt; _prOwnSet[data.savedAt]=1; // simpan semua savedAt milik sendiri (save beruntun)
+  window._fbDb.runTransaction(function(tx){
+    return tx.get(fbDoc).then(function(snap){
+      prevForBackup=null;
+      if(snap.exists){
+        let cur=null; try{ cur=JSON.parse(snap.data().data); }catch(e){}
+        if(cur && !cur.deleted){
+          const curSaved=cur.savedAt||"";
+          if(curSaved && curSaved!==_prBaseSavedAt && !_prOwnSet[curSaved]){
+            const e=new Error('konflik'); e.prConflict=cur; throw e;
+          }
+          const curCount=_prCountRows(cur);
+          if(!allowShrink && curCount>=10 && newCount<curCount*0.5){
+            const e=new Error('menyusut'); e.prShrink={cur:curCount,baru:newCount}; throw e;
+          }
+          prevForBackup=snap.data().data;
+        }
+      }
+      tx.set(fbDoc,{ data: JSON.stringify(data), updatedAt: data.savedAt });
+    });
+  }).then(function(){
+    _prBaseSavedAt = data.savedAt;
+    console.log('[Firebase] Presensi tersimpan ke Firestore ✅');
+    if(typeof _showCloudSaved==='function') _showCloudSaved();
+    // Cadangan harian (best-effort; kegagalan tidak mengganggu)
+    try{
+      if(prevForBackup){
+        const today=new Date().toISOString().slice(0,10);
+        const mk='presensi_bak_'+key;
+        if(localStorage.getItem(mk)!==today){
+          const slot=new Date().getDay();
+          const docId=key.replace('presensi_db_v2_','');
+          window._fbDb.collection('presensi-baniona-backup').doc(docId+'_hari'+slot)
+            .set({data:prevForBackup, backupAt:new Date().toISOString()})
+            .then(function(){ localStorage.setItem(mk,today); })
+            .catch(function(){});
+        }
+      }
+    }catch(e){}
+  }).catch(function(err){
+    _prOwnSave = "";
+    if(err && err.prConflict){
+      console.warn('[Presensi] Konflik: cloud lebih baru dari yang dibaca perangkat ini — memakai versi cloud');
+      _prApplyCloudNow(err.prConflict, key);
+      if(typeof _showCloudSaved==='function') _showCloudSaved();
+      showToast('Data presensi sudah diperbarui dari perangkat lain. Perubahan Anda barusan tidak disimpan — mohon ulangi jika perlu.','error');
+      return;
+    }
+    if(err && err.prShrink){
+      const m=err.prShrink;
+      if(confirm('PERINGATAN: jumlah baris presensi akan turun dari '+m.cur+' menjadi '+m.baru+'.\n\nIni bisa berarti data terhapus tidak sengaja.\n\nSimpan tetap? (Batal = pertahankan data di cloud)')){
+        data.savedAt=new Date().toISOString();
+        _prSafeCloudWrite(fbDoc, data, key, true);
+      } else {
+        console.warn('[Presensi] Simpan menyusut dibatalkan user — memulihkan dari cloud');
+        fbDoc.get().then(function(sn){ if(sn.exists){ try{ _prApplyCloudNow(JSON.parse(sn.data().data), key); }catch(e){} } });
+        if(typeof _showCloudSaved==='function') _showCloudSaved();
+      }
+      return;
+    }
+    console.warn('[Firebase] Gagal simpan presensi ke Firestore:', err);
+    if(typeof _showCloudError==='function') _showCloudError();
+    // coba lagi otomatis (mis. koneksi putus)
+    clearTimeout(_prRetryTimer);
+    _prRetryTimer=setTimeout(function(){ if(getDbKey()===key) savePresensiDB(); }, 10000);
+  });
+}
+
 function savePresensiDB(){
   try{
+    if(typeof _prInited==='undefined' || !_prInited) return; // panel belum aktif → jangan simpan state kosong
+    const _guardKey=getDbKey();
+    if(!_prCloudReady(_guardKey)){
+      // Cloud belum terbaca (perangkat baru / koneksi lambat) → tunda, jangan timpa
+      _prDirtyBeforeReady = true;
+      return;
+    }
+    if(submitted){ try{ _prBonusSaldo=_prHitungSaldoAkhir(); }catch(e){ console.warn('saldo akhir gagal:',e); } }
     const data={
       rows, submitted, published, tanggalMerah, tanggalCuti, keteranganTH, ambilLiburUsed, kuotaManual,
+      bonusSaldo: _prBonusSaldo||undefined,
       settings:{
         bulan: document.getElementById("sBulan").value,
         tahun: document.getElementById("sTahun").value,
@@ -11859,17 +11971,7 @@ function savePresensiDB(){
     // Sync ke Firestore
     const fbDoc=_getPresensiFirestoreDoc();
     if(fbDoc){
-      _prOwnSave = data.savedAt; // tandai sebagai save milik kita sendiri
-      fbDoc.set({ data: JSON.stringify(data), updatedAt: data.savedAt })
-        .then(()=>{
-          console.log('[Firebase] Presensi tersimpan ke Firestore ✅');
-          if(typeof _showCloudSaved==='function') _showCloudSaved();
-        })
-        .catch(err=>{
-          console.warn('[Firebase] Gagal simpan presensi ke Firestore:', err);
-          _prOwnSave = ""; // reset agar tidak dianggap own save
-          if(typeof _showCloudError==='function') _showCloudError();
-        });
+      _prSafeCloudWrite(fbDoc, data, _guardKey, false);
     }
   }catch(e){console.warn("savePresensiDB error:",e);}
 }
@@ -11885,12 +11987,16 @@ function _applyPresensiData(data){
   if(data.keteranganTH) keteranganTH=data.keteranganTH;
   if(data.ambilLiburUsed) ambilLiburUsed=data.ambilLiburUsed;
   if(data.kuotaManual) kuotaManual=data.kuotaManual;
+  _prBonusSaldo=_prSaldoDariData(data);
   if(typeof data.submitted !== 'undefined') submitted=data.submitted; else submitted=false;
   published=!!data.published;
 }
 
 function loadPresensiDB(bulan, tahun){
   const key=getDbKey(bulan, tahun);
+  _prSaldoAwal={}; _prBonusSaldo=null;
+  { const _bb=bulan||document.getElementById("sBulan").value, _tt=tahun||document.getElementById("sTahun").value;
+    setTimeout(function(){ _prMuatSaldoAwal(+_bb,+_tt); },0); }
   // 1. Load localStorage dulu (cepat, tampil langsung)
   try{
     const raw=localStorage.getItem(key);
@@ -11904,14 +12010,30 @@ function loadPresensiDB(bulan, tahun){
 
   // 2. Coba ambil dari Firestore (sumber sinkron antar perangkat)
   const fbDoc=_getPresensiFirestoreDoc(bulan, tahun);
-  if(fbDoc){
-    fbDoc.get().then(snap=>{
-      if(!snap.exists) return;
+  _prCloudReadyKey = ""; // bulan ini belum terkonfirmasi dari cloud
+  if(!fbDoc){
+    // Firebase tidak tersedia (mode lokal saja) → boleh simpan lokal
+    _prCloudReadyKey = key;
+  } else {
+    const _loadFromCloud=function(retry){
+    fbDoc.get({source:'server'}).then(snap=>{
+      // Abaikan jika sementara itu user pindah bulan
+      const _curKey=getDbKey();
+      if(_curKey!==key) return;
+      if(!snap.exists){
+        // Belum ada data di cloud → aman menyimpan data lokal (jika ada perubahan tertunda)
+        _prBaseSavedAt = "";
+        _prCloudReadyKey = key;
+        if(_prDirtyBeforeReady){ _prDirtyBeforeReady=false; savePresensiDB(); }
+        return;
+      }
       try{
         const fbData=JSON.parse(snap.data().data);
         // Penanda hapus → pastikan localStorage lokal juga bersih
         if(fbData.deleted){
           localStorage.removeItem(key);
+          _prBaseSavedAt = fbData.savedAt||"";
+          _prCloudReadyKey = key;
           return;
         }
         const fbSaved=fbData.savedAt||"";
@@ -11927,7 +12049,7 @@ function loadPresensiDB(bulan, tahun){
           invalidateRowCache();
           const _p2=getPeriodeStr();
           ['bulanLabel','periodeLabel','kalPeriode','rekapPeriode'].forEach(function(id){const el=document.getElementById(id);if(el)el.textContent=_p2;});
-          const _eff2=document.getElementById('effBox'); if(_eff2)_eff2.textContent=fmtLong(getEffMins());
+          const _eff2=document.getElementById('effBox'); if(_eff2)_eff2.textContent=_effBoxText();
           const _hk2=document.getElementById('hkBox'); if(_hk2)_hk2.textContent=getHariKerja().length+' hari';
           renderTglMerah(); renderTglCuti(); renderRows();
           if(submitted){ _summaryMap=buildSummaryMap(); renderSummary(); renderKalender(); }
@@ -11937,10 +12059,21 @@ function loadPresensiDB(bulan, tahun){
           }
           renderKirimStatus();
           _updateBtnHitung();
+          _prDirtyBeforeReady=false; // Firestore menang
+          _prBaseSavedAt = fbSaved;
+          _prCloudReadyKey = key;
           _prNotif("info","☁️ Data diperbarui dari Cloud","Data presensi disinkronkan dari perangkat lain.");
+        } else {
+          _prCloudReadyKey = key;
         }
       }catch(e){ console.warn('[Firebase] Gagal parse presensi dari Firestore:', e); }
-    }).catch(err=>console.warn('[Firebase] Gagal load presensi dari Firestore:', err));
+    }).catch(err=>{
+      // Gagal baca cloud → JANGAN tandai siap (agar tidak menimpa). Coba lagi.
+      console.warn('[Firebase] Gagal load presensi dari Firestore:', err);
+      if(retry<20) setTimeout(function(){ if(getDbKey()===key) _loadFromCloud(retry+1); }, 4000);
+    });
+    };
+    _loadFromCloud(0);
   }
 
   // Return berdasarkan localStorage (sync)
@@ -11967,12 +12100,14 @@ function _startPresensiRealtimeSync(bulan, tahun){
   if(!fbDoc) return;
   _prRealtimeUnsub = fbDoc.onSnapshot(function(snap){
     if(!snap.exists) return;
+    if(snap.metadata && snap.metadata.fromCache) return; // abaikan cache lokal, tunggu data server
     try{
       const fbData = JSON.parse(snap.data().data);
       // Penanda hapus dari perangkat lain → reset state lokal
       if(fbData.deleted){
         const _delSaved=fbData.savedAt||"";
         if(_delSaved && _delSaved!==_prOwnSave){
+          _prBaseSavedAt=_delSaved;
           const _delKey=getDbKey(bulan,tahun);
           localStorage.removeItem(_delKey);
           rows=[{nama:"",tanggal:"",jamMasuk:"",jamPulang:""}];
@@ -11993,6 +12128,7 @@ function _startPresensiRealtimeSync(bulan, tahun){
       if(fbSaved === _prLastApplied) return;
       console.log('[Firebase] Real-time: data lebih baru dari perangkat lain — diterapkan ✅', fbSaved);
       _prLastApplied = fbSaved;
+      _prBaseSavedAt = fbSaved;
       // Reset & apply langsung dari Firestore — tanpa merge lokal
       rows=[{nama:"",tanggal:"",jamMasuk:"",jamPulang:""}];
       submitted=false; published=false; keteranganTH={}; ambilLiburUsed={}; kuotaManual={};
@@ -12005,7 +12141,7 @@ function _startPresensiRealtimeSync(bulan, tahun){
         invalidateRowCache();
         const _p=getPeriodeStr();
         ['bulanLabel','periodeLabel','kalPeriode','rekapPeriode'].forEach(function(id){const el=document.getElementById(id);if(el)el.textContent=_p;});
-        const _effEl=document.getElementById('effBox'); if(_effEl)_effEl.textContent=fmtLong(getEffMins());
+        const _effEl=document.getElementById('effBox'); if(_effEl)_effEl.textContent=_effBoxText();
         const _hkEl=document.getElementById('hkBox'); if(_hkEl)_hkEl.textContent=getHariKerja().length+' hari';
         renderTglMerah(); renderTglCuti(); renderRows();
         if(submitted){ _summaryMap=buildSummaryMap(); renderSummary(); renderKalender(); }
@@ -12060,12 +12196,13 @@ function renderKirimStatus(){
 function clearDB(){
   if(!confirm("Hapus semua data tersimpan bulan ini? Tindakan ini tidak bisa dibatalkan.")) return;
   const key=getDbKey();
+  _prCloudReadyKey=key;
   localStorage.removeItem(key);
   // Tulis penanda hapus ke Firestore agar perangkat lain ikut reset
   const fbDoc=_getPresensiFirestoreDoc();
   if(fbDoc){
     const _deletedAt=new Date().toISOString();
-    _prOwnSave=_deletedAt;
+    _prOwnSave=_deletedAt; _prBaseSavedAt=_deletedAt;
     fbDoc.set({data:JSON.stringify({deleted:true,savedAt:_deletedAt}),updatedAt:_deletedAt})
       .then(()=>console.log('[Firebase] Penanda hapus presensi dikirim ke Firestore ✅'))
       .catch(()=>{});
@@ -12098,6 +12235,7 @@ function onBulanChange(){
       try{
         const oldData={
           rows, submitted, published, tanggalMerah, tanggalCuti, keteranganTH, ambilLiburUsed, kuotaManual,
+          bonusSaldo: _prBonusSaldo||undefined,
           settings:{
             bulan:_activeBulan, tahun:_activeTahun,
             jamMasuk: document.getElementById("sJamMasuk").value,
@@ -12107,8 +12245,8 @@ function onBulanChange(){
           savedAt: new Date().toISOString()
         };
         localStorage.setItem(oldKey, JSON.stringify(oldData));
-        // Sync bulan lama ke Firestore
-        const fbDocOld=_getPresensiFirestoreDoc(_activeBulan, _activeTahun);
+        // Sync bulan lama ke Firestore (hanya jika cloud bulan itu sudah terbaca — anti-timpa)
+        const fbDocOld=_prCloudReady(oldKey)?_getPresensiFirestoreDoc(_activeBulan, _activeTahun):null;
         if(fbDocOld) fbDocOld.set({ data: JSON.stringify(oldData), updatedAt: oldData.savedAt })
           .catch(err=>console.warn('[Firebase] Gagal simpan bulan lama ke Firestore:', err));
       }catch(e){console.warn("save old month error:",e);}
@@ -12116,7 +12254,7 @@ function onBulanChange(){
       // Reset state untuk bulan baru
       rows=[{nama:"",tanggal:"",jamMasuk:"",jamPulang:""}];
       submitted=false; published=false; _summaryMap={}; keteranganTH={}; ambilLiburUsed={}; kuotaManual={};
-      tanggalMerah={}; tanggalCuti={};
+      tanggalMerah={}; tanggalCuti={}; _prSaldoAwal={}; _prBonusSaldo=null;
       invalidateHKCache();
 
       const loaded=loadPresensiDB(newB, newT);
@@ -12338,6 +12476,34 @@ function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").
 // ═══════════════════════════════════════════════════════
 function getBulan(){return +document.getElementById("sBulan").value;}
 function getTahun(){return +document.getElementById("sTahun").value;}
+// ═══ JADWAL JAM KERJA PER HARI (aturan Pemda, berlaku mulai Oktober 2026) ═══
+// Sebelum 2026-10-01 → jadwal lama (default 07:45–13:45, dikunci).
+// Mulai 2026-10-01: Senin–Kamis 07:45–14:30 · Jumat 07:45–11:30 · Sabtu 07:45–13:00.
+// Fungsi MURNI (tanpa DOM) agar dipakai juga oleh tampilan pegawai & laporan cetak.
+const JADWAL_BARU_MULAI = "2026-10-01";
+const JADWAL_BARU = {1:["07:45","14:30"],2:["07:45","14:30"],3:["07:45","14:30"],4:["07:45","14:30"],5:["07:45","11:30"],6:["07:45","13:00"]};
+function _jkMenit(t){const m=String(t||"").match(/^(\d{1,2}):(\d{2})/);return m?(+m[1])*60+(+m[2]):0;}
+function jadwalKerja(ds, defJm, defJp){
+  const dJm=defJm||"07:45", dJp=defJp||"13:45";
+  if(ds && /^\d{4}-\d{2}-\d{2}/.test(ds) && ds.slice(0,10)>=JADWAL_BARU_MULAI){
+    const dow=new Date(+ds.slice(0,4),+ds.slice(5,7)-1,+ds.slice(8,10)).getDay();
+    const j=JADWAL_BARU[dow];
+    if(j) return {jmStr:j[0],jpStr:j[1],jm:_jkMenit(j[0]),jp:_jkMenit(j[1])};
+  }
+  return {jmStr:dJm,jpStr:dJp,jm:_jkMenit(dJm),jp:_jkMenit(dJp)};
+}
+function _effBoxText(){
+  if(!jadwalBulanBaru(getBulan(),getTahun())) return fmtLong(getEffMins());
+  const i=getIstirahat();
+  return "Sen–Kam "+_jkFmt(_jkMenit("14:30")-_jkMenit("07:45")-i)+" · Jum "+_jkFmt(_jkMenit("11:30")-_jkMenit("07:45")-i)+" · Sab "+_jkFmt(_jkMenit("13:00")-_jkMenit("07:45")-i);
+}
+function _jkFmt(mins){const h=Math.floor(mins/60),m=mins%60;return h+"j"+(m?(" "+m+"m"):"");}
+function jadwalBulanBaru(bulan,tahun){ return (+tahun*100+ +bulan) >= 202610; }
+// Ringkasan teks jadwal untuk header/laporan
+function jadwalRingkas(bulan,tahun,defJm,defJp){
+  if(jadwalBulanBaru(bulan,tahun)) return "Sen–Kam 07:45–14:30 · Jum 07:45–11:30 · Sab 07:45–13:00";
+  return (defJm||"07:45")+" — "+(defJp||"13:45");
+}
 function getJamMasukMins(){return parseMinutes(document.getElementById("sJamMasuk").value);}
 function getJamPulangMins(){return parseMinutes(document.getElementById("sJamPulang").value);}
 function getIstirahat(){return +document.getElementById("sIstirahat").value||0;}
@@ -12393,10 +12559,13 @@ function onSettingChange(){
   document.getElementById("periodeLabel").textContent=p;
   document.getElementById("kalPeriode").textContent=p;
   document.getElementById("rekapPeriode").textContent=p;
-  document.getElementById("effBox").textContent=fmtLong(getEffMins());
+  const _baru=jadwalBulanBaru(getBulan(),getTahun());
+  const _ist=getIstirahat();
+  const _effTxt=_baru?("Sen–Kam "+_jkFmt(_jkMenit("14:30")-_jkMenit("07:45")-_ist)+" · Jum "+_jkFmt(_jkMenit("11:30")-_jkMenit("07:45")-_ist)+" · Sab "+_jkFmt(_jkMenit("13:00")-_jkMenit("07:45")-_ist)):fmtLong(getEffMins());
+  document.getElementById("effBox").textContent=_effTxt;
   document.getElementById("hkBox").textContent=getHariKerja().length+" hari";
   document.getElementById("footerInfo").textContent=
-    `Presensi ${p} · ${document.getElementById("sJamMasuk").value}–${document.getElementById("sJamPulang").value} · Istirahat ${getIstirahat()}mnt · Efektif ${fmtLong(getEffMins())}/hari · ${getHariKerja().length} hari kerja`;
+    `Presensi ${p} · ${_baru?jadwalRingkas(getBulan(),getTahun()):document.getElementById("sJamMasuk").value+"–"+document.getElementById("sJamPulang").value} · Istirahat ${getIstirahat()}mnt · Efektif ${_baru?"bervariasi per hari":fmtLong(getEffMins())+"/hari"} · ${getHariKerja().length} hari kerja`;
   renderRows();
   if(!_prSuppressAutoSave) autoSave();
 }
@@ -12429,7 +12598,8 @@ function _computeRowRaw(row){
   if(tanggalCuti[tgl]) {
     if(!row.jamMasuk && !row.jamPulang) return {skip:true,isMerah:false,isCuti:true};
     // Ada presensi di hari cuti bersama → bonus hari kerja
-    const jm=getJamMasukMins(), jp=getJamPulangMins(), ist=getIstirahat(), eff=getEffMins();
+    const _jd=jadwalKerja(tgl,document.getElementById("sJamMasuk").value,document.getElementById("sJamPulang").value);
+    const jm=_jd.jm, jp=_jd.jp, ist=getIstirahat(), eff=Math.max(0,jp-jm-ist);
     let terlambat=0,pulangCepat=0,statusMasuk="tepat",statusPulang="tepat",jamKerjaAktual=0,statusJamKerja="normal";
     // Clamp: presensi sebelum jam masuk → dihitung tepat jam masuk
     // Clamp: presensi setelah jam pulang → dihitung tepat jam pulang
@@ -12453,7 +12623,8 @@ function _computeRowRaw(row){
   const _ket = row.nama && row.tanggal ? (keteranganTH[ketKey(row.nama,row.tanggal)]||"") : "";
   const isDinas = _ket === "dinas" || _ket === "ukm";
 
-  const jm=getJamMasukMins(), jp=getJamPulangMins(), ist=getIstirahat(), eff=getEffMins();
+  const _jd=jadwalKerja(tgl,document.getElementById("sJamMasuk").value,document.getElementById("sJamPulang").value);
+  const jm=_jd.jm, jp=_jd.jp, ist=getIstirahat(), eff=Math.max(0,jp-jm-ist);
   let terlambat=0,pulangCepat=0,statusMasuk="tepat",statusPulang="tepat",jamKerjaAktual=0,statusJamKerja="normal";
 
   const amRaw=row.jamMasuk?parseMinutes(row.jamMasuk):null;
@@ -12537,7 +12708,8 @@ function buildSummaryMap(){
     // Hanya pakai ambil libur yang masih dalam kuota (tidak melebihi bonus tersedia)
     const bonusTersedia = bonusCutiSet.size;
     const kuotaTambahan = kuotaManual[nama]||0;
-    const totalKuota = bonusTersedia + kuotaTambahan;
+    const saldoAwal = Math.max(0, +_prSaldoAwal[nama]||0); // sisa kuota terbawa dari bulan sebelumnya
+    const totalKuota = saldoAwal + bonusTersedia + kuotaTambahan;
     // Batasi pemakaian ambil libur sesuai kuota
     const ambilLiburValid = ambilLiburDates.slice(0, totalKuota);
     // Hanya hari ambil libur yang valid (masih ada kuota) dihitung hadir
@@ -12601,6 +12773,7 @@ function buildSummaryMap(){
       bonusCutiList: [...bonusCutiSet].sort(),
       bonusCutiTotal: bonusTersedia,       // bonus cuti bulan ini
       kuotaTambahan,                        // kuota manual ditambahkan admin
+      saldoAwal,                            // saldo kuota terbawa dari bulan sebelumnya
       totalKuota,                           // total kuota = cuti bersama + manual
       totalEarned,                          // kumulatif semua bulan
       ambilLiburCount,                      // ambil libur bulan ini
@@ -13061,7 +13234,9 @@ function hitungSekarang(){
 // Buka modal keterangan untuk semua tanggal TH seorang pegawai (navigasi lengkap)
 function openModalKetAll(nama){
   // Gunakan _summaryMap jika sudah dihitung, fallback ke buildSummaryMap() untuk pra-rekap
-  const s=_summaryMap[nama] || buildSummaryMap()[nama];
+  // SELALU hitung ulang (jangan pakai _summaryMap lama): _summaryMap bisa usang saat rekap belum
+  // dihitung / setelah sinkron cloud, sehingga ada tanggal yang tidak muncul di daftar input.
+  const s=buildSummaryMap()[nama];
   if(!s) return;
   // Gabungkan hariTidakHadir + ambilLiburDates + kompensasiPiketDates + hariDinasSinkron
   // agar semua tanggal yang sudah diberi keterangan tetap bisa diedit kembali
@@ -13075,7 +13250,9 @@ function openModalKetAll(nama){
     ...hariHadirManual,
     ...(s.ambilLiburDates||[]),
     ...(s.kompensasiPiketDates||[]),
-    ...(s.hariDinasSinkron||[])
+    ...(s.hariDinasSinkron||[]),
+    // Hadir presensi + perjalanan dinas/UKM juga bisa diedit kembali
+    ...(s.hariHadirList||[]).filter(ds=>{const k=keteranganTH[ketKey(nama,ds)];return k==='dinas'||k==='ukm';})
   ])].sort();
   if(!allEditable.length) return;
   const queue=allEditable.map(ds=>({nama,ds}));
@@ -13177,8 +13354,8 @@ function renderRekapPraHitung(){
     const ambildiburWarning = s.ambilLiburDates && s.ambilLiburDates.length > s.totalKuota
       ? `<div style="font-size:10px;color:#DC2626;font-weight:700;margin-top:4px">⚠ ${s.ambilLiburDates.length - s.totalKuota} Ambil Libur melebihi kuota — dihitung Tidak Hadir</div>`
       : '';
-    const kuotaTambahanDisplay = s.kuotaTambahan>0 ? `<span style="color:#3B5BDB"> · ➕ Manual: +${s.kuotaTambahan}</span>` : '';
-    const bonusCutiInfo = (s.bonusCutiTotal > 0 || s.kuotaTambahan > 0)
+    const kuotaTambahanDisplay = (s.saldoAwal>0 ? `<span style="color:#7C3AED"> · ⏩ Saldo bulan lalu: +${s.saldoAwal}</span>` : '') + (s.kuotaTambahan>0 ? `<span style="color:#3B5BDB"> · ➕ Manual: +${s.kuotaTambahan}</span>` : '');
+    const bonusCutiInfo = (s.bonusCutiTotal > 0 || s.kuotaTambahan > 0 || s.saldoAwal > 0)
       ? `<div style="font-size:10px;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:6px;padding:4px 8px;margin-bottom:6px;color:#059669;font-weight:700">
           🌟 Bonus Cuti Bersama: ${s.bonusCutiTotal} hari${kuotaTambahanDisplay} · Total: ${s.totalKuota} · Terpakai: ${s.ambilLiburCount} · Sisa: ${s.bonusSisa}
          </div>${ambildiburWarning}`
@@ -13423,10 +13600,10 @@ function renderSummary(){
       ? `<div style="font-size:10px;color:#DC2626;font-weight:700;margin-top:4px">⚠ ${s.ambilLiburDates.length - s.totalKuota} Ambil Libur melebihi kuota — dihitung Tidak Hadir</div>`
       : "";
 
-    const kuotaTambahanDisplay = s.kuotaTambahan>0
+    const kuotaTambahanDisplay = (s.saldoAwal>0 ? `<span style="color:#7C3AED"> · ⏩ Saldo bulan lalu: +${s.saldoAwal}</span>` : "") + (s.kuotaTambahan>0
       ? `<span style="color:#3B5BDB"> · ➕ Manual: +${s.kuotaTambahan}</span>`
-      : "";
-    const bonusCutiInfo = (s.bonusCutiTotal > 0 || s.kuotaTambahan > 0)
+      : "");
+    const bonusCutiInfo = (s.bonusCutiTotal > 0 || s.kuotaTambahan > 0 || s.saldoAwal > 0)
       ? `<div style="font-size:10px;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:6px;padding:4px 8px;margin-bottom:6px;color:#059669;font-weight:700">
           🌟 Bonus Cuti Bersama: ${s.bonusCutiTotal} hari${kuotaTambahanDisplay} · Total: ${s.totalKuota} · Terpakai: ${s.ambilLiburCount} · Sisa: ${s.bonusSisa}
          </div>${ambildiburWarning}`
@@ -15089,7 +15266,7 @@ function buildLaporanPresensiPegawaiHTML(namaPeg, myRows, bulan, tahun, tMerah, 
     const rArr=byTgl[ds]||[];
     const pRow=rArr.find(r=>r.jamMasuk||r.jamPulang);
     const ket=ketTH[namaPeg+'||'+ds]||'';
-    const res=pRow?_pprComputeRow(pRow,ket,jm,jp,ist):null;
+    const _jdd=jadwalKerja(ds,jamMasukStd,jamPulangStd); const res=pRow?_pprComputeRow(pRow,ket,_jdd.jm,_jdd.jp,ist):null;
 
     let statusLabel='—', jmStr='—', jpStr='—', jkStr='—', tlmStr='—', pcStr='—';
 
@@ -15149,7 +15326,7 @@ function buildLaporanPresensiPegawaiHTML(namaPeg, myRows, bulan, tahun, tMerah, 
           <div><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">NIP</div><div style="font-weight:700;font-family:monospace">${esc(peg?.nip||'-')}</div></div>
           <div><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Jabatan</div><div style="font-weight:700">${esc(peg?.jabatan||'-')}</div></div>
           <div><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Golongan/Pangkat</div><div style="font-weight:700">${esc(peg?.pangkat||'-')}</div></div>
-          <div><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Jam Kerja</div><div style="font-weight:700">${esc(jamMasukStd)} — ${esc(jamPulangStd)} WIT</div></div>
+          <div><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Jam Kerja</div><div style="font-weight:700">${esc(jadwalRingkas(bulan,tahun,jamMasukStd,jamPulangStd))} WIT</div></div>
           <div><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Hari Kerja</div><div style="font-weight:700">${hariKerja.length} hari (Senin–Sabtu)</div></div>
         </div>
 
@@ -15252,7 +15429,7 @@ function cetakLaporanPresensiPegawai(){
     const rArr=byTgl[ds]||[];
     const pRow=rArr.find(r=>r.jamMasuk||r.jamPulang);
     const ket=ketTH[namaPeg+'||'+ds]||'';
-    const res=pRow?_pprComputeRow(pRow,ket,jm,jp,ist):null;
+    const _jdd=jadwalKerja(ds,jamMasukStd,jamPulangStd); const res=pRow?_pprComputeRow(pRow,ket,_jdd.jm,_jdd.jp,ist):null;
 
     let statusLabel='—', jmStr='—', jpStr='—', jkStr='—', tlmStr='—', pcStr='—';
 
@@ -15415,7 +15592,7 @@ function cetakLaporanPresensiPegawai(){
     <div class="id-box"><div class="lbl">Jabatan</div><div class="val">${peg?.jabatan||'—'}</div></div>
     <div class="id-box"><div class="lbl">Unit Kerja</div><div class="val">UPTD Puskesmas Baniona</div></div>
     <div class="id-box"><div class="lbl">Golongan/Pangkat</div><div class="val">${peg?.pangkat||'—'}</div></div>
-    <div class="id-box"><div class="lbl">Jam Kerja</div><div class="val">${jamMasukStd} — ${jamPulangStd} WIT</div></div>
+    <div class="id-box"><div class="lbl">Jam Kerja</div><div class="val">${jadwalRingkas(bulan,tahun,jamMasukStd,jamPulangStd)} WIT</div></div>
   </div>
 
   <div class="ringkasan">
@@ -15455,7 +15632,7 @@ function cetakLaporanPresensiPegawai(){
     <tbody>${tableRows||'<tr><td colspan="8" style="text-align:center;padding:10px;color:#6b7280">Belum ada data</td></tr>'}</tbody>
     <tfoot><tr>
       <td colspan="4" style="text-align:left;font-size:6.5pt;color:#4a5568">
-        Jam Kerja: ${jamMasukStd} — ${jamPulangStd} WIT &nbsp;·&nbsp; Total Hari Kerja: ${hariKerja.length} hari
+        Jam Kerja: ${jadwalRingkas(bulan,tahun,jamMasukStd,jamPulangStd)} WIT &nbsp;·&nbsp; Total Hari Kerja: ${hariKerja.length} hari
       </td>
       <td>Hadir: ${cHadir}</td>
       <td>Tlm: ${cTerlambat}x</td>
@@ -16105,6 +16282,8 @@ async function exportExcel(){
     const isMerah=!!tanggalMerah[tanggal];
     const isCuti=!!tanggalCuti[tanggal];
     const hariStr=dayName(tanggal);
+    const _jd=jadwalKerja(tanggal,jmVal,jpVal);
+    const _effRow=Math.max(0,_jd.jp-_jd.jm-getIstirahat());
 
     if(type==="tidakhadir"){
       const ket=keteranganTH[ketKey(nama,tanggal)]||"";
@@ -16117,9 +16296,9 @@ async function exportExcel(){
         else ketLabel=`Tidak Hadir (${ki.label.replace(/^[\uD800-\uDFFF\u2000-\u3300\u{1F000}-\u{1FFFF}]+\s*/u,"")})`;
       }
       return{no:idx+1,nama,tanggal:tanggal||"",hari:hariStr,keterangan:ketLabel,
-        jmJadwal:jmVal,jmAktual:"",statusMasuk:"Tidak Hadir",terlambat:"",
-        jpJadwal:jpVal,jpAktual:"",statusPulang:"",pulangCepat:"",
-        jkEfektif:minsToHHMM(effMins),jkAktual:"0:00",selisih:"",statusJK:"Tidak Hadir",_kind:"tidakhadir"};
+        jmJadwal:_jd.jmStr,jmAktual:"",statusMasuk:"Tidak Hadir",terlambat:"",
+        jpJadwal:_jd.jpStr,jpAktual:"",statusPulang:"",pulangCepat:"",
+        jkEfektif:minsToHHMM(_effRow),jkAktual:"0:00",selisih:"",statusJK:"Tidak Hadir",_kind:"tidakhadir"};
     }
     const tlm=(res&&!res.skip)?res.terlambat||0:0;
     const pc =(res&&!res.skip)?res.pulangCepat||0:0;
@@ -16134,12 +16313,12 @@ async function exportExcel(){
     const _ketHadirLabel=_ketHadir&&_ketHadir.startsWith("lainnya-hadir:")?"HADIR - "+_ketHadir.slice(14):(_ketHadirLabelMap[_ketHadir]||"HADIR");
     return{no:idx+1,nama,tanggal:tanggal||"",hari:hariStr,
       keterangan:isMerah?`Hari Merah: ${tanggalMerah[tanggal]||""}`:isCuti?`Cuti Bersama: ${tanggalCuti[tanggal]||""}`:_ketHadirLabel,
-      jmJadwal:jmVal,jmAktual:jm||"",statusMasuk:statusMasukLbl,
+      jmJadwal:_jd.jmStr,jmAktual:jm||"",statusMasuk:statusMasukLbl,
       terlambat:tlm>0?`${tlm} mnt (${minsToHHMM(tlm)})`:"",
-      jpJadwal:jpVal,jpAktual:jp||"",
+      jpJadwal:_jd.jpStr,jpAktual:jp||"",
       statusPulang:isMerah||isCuti?"":jp?(sP==="cepat"?"Pulang Cepat":"Tepat Waktu"):"",
       pulangCepat:pc>0?`${pc} mnt (${minsToHHMM(pc)})`:"",
-      jkEfektif:minsToHHMM(effMins),
+      jkEfektif:minsToHHMM(_effRow),
       jkAktual:jka>0?minsToHHMM(jka):"",
       selisih:jm&&jp&&!isMerah&&!isCuti?slj:"",
       statusJK:isMerah||isCuti?"":sJK,
@@ -16157,7 +16336,7 @@ async function exportExcel(){
   const t1=ws1.getCell(1,1);t1.value=`REKAP PRESENSI HARIAN — ${BULAN_NAMES[b-1].toUpperCase()} ${t}`;styleTitle(t1);
   ws1.getRow(1).height=28;
   ws1.mergeCells(2,1,2,COLS1.length);
-  const s1=ws1.getCell(2,1);s1.value=`Jadwal: ${jmVal} – ${jpVal}   |   Hari Kerja: ${hk.length} hari   |   Dicetak: ${today2}`;styleSubtitle(s1);
+  const s1=ws1.getCell(2,1);s1.value=`Jadwal: ${jadwalRingkas(getBulan(),getTahun(),jmVal,jpVal)}   |   Hari Kerja: ${hk.length} hari   |   Dicetak: ${today2}`;styleSubtitle(s1);
   ws1.getRow(2).height=18;
   ws1.getRow(3).height=4;
 
@@ -16258,7 +16437,7 @@ async function exportExcel(){
     const t2=ws2.getCell(1,1);t2.value=`REKAP PRESENSI PEGAWAI — ${bulanNama.toUpperCase()} ${t}`;styleTitle(t2);
     ws2.getRow(1).height=32;
     ws2.mergeCells(2,1,2,COLS2.length);
-    const s2=ws2.getCell(2,1);s2.value=`Total Hari Kerja: ${hk.length} Hari   |   Jadwal: ${jmVal} – ${jpVal}   |   Dicetak: ${today2}`;styleSubtitle(s2);
+    const s2=ws2.getCell(2,1);s2.value=`Total Hari Kerja: ${hk.length} Hari   |   Jadwal: ${jadwalRingkas(getBulan(),getTahun(),jmVal,jpVal)}   |   Dicetak: ${today2}`;styleSubtitle(s2);
     ws2.getRow(2).height=18;
     ws2.getRow(3).height=5;
 
@@ -16323,8 +16502,8 @@ async function exportExcel(){
 
   const infoRows=[
     ["Tanggal Cetak",today2],["Periode",`${BULAN_NAMES[b-1]} ${t}`],
-    ["Jadwal",`${jmVal} – ${jpVal}`],["Istirahat",`${getIstirahat()} menit`],
-    ["Jam Kerja Efektif/Hari",minsToHHMM(effMins)],["Hari Kerja Bulan Ini",hk.length]
+    ["Jadwal",jadwalRingkas(getBulan(),getTahun(),jmVal,jpVal)],["Istirahat",`${getIstirahat()} menit`],
+    ["Jam Kerja Efektif/Hari",jadwalBulanBaru(getBulan(),getTahun())?"Bervariasi per hari":minsToHHMM(effMins)],["Hari Kerja Bulan Ini",hk.length]
   ];
   let r3=3;
   infoRows.forEach(([k,v])=>{
@@ -16655,7 +16834,7 @@ function exportPDFperPegawai(){
           </div>
           <div class="emp-field">
             <label>Jam Kerja</label>
-            <div class="val">${jmVal} — ${jpVal} WIT</div>
+            <div class="val">${jadwalRingkas(getBulan(),getTahun(),jmVal,jpVal)} WIT</div>
           </div>
           <div class="emp-field">
             <label>Periode Laporan</label>
