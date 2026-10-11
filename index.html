@@ -1526,33 +1526,29 @@ function downloadBackupJSON(){
 }
 window.downloadBackupJSON=downloadBackupJSON;
 
-// Cek apakah backup harian sudah pernah dilakukan hari ini
+// Backup harian OTOMATIS: file backup langsung terdownload sekali per hari per perangkat
+// saat admin membuka aplikasi (setelah data selesai dimuat dari Cloud).
 (function checkAutoBackup(){
   try{
     const today=new Date().toISOString().slice(0,10);
-    const lastBackup=localStorage.getItem('_last_auto_backup');
-    if(lastBackup!==today){
-      // Tunda 10 detik agar data sempat dimuat dari Firestore dulu
-      setTimeout(function(){
-        try{
-          const punya=(db.jadwal&&db.jadwal.length>0)||
-                       (db.suratTugas&&db.suratTugas.length>0)||
-                       (db.jenisKegiatan&&db.jenisKegiatan.length>0);
-          if(punya){
-            localStorage.setItem('_last_auto_backup', today);
-            // Tampilkan notifikasi ke user (tidak otomatis download agar tidak mengganggu)
-            setTimeout(function(){
-              const ind=document.getElementById('save-indicator');
-              if(ind){
-                ind.className='saved';
-                ind.innerHTML='💾 <a href="#" onclick="downloadBackupJSON();return false;" style="color:inherit;text-decoration:underline;">Backup tersedia — klik untuk simpan</a>';
-                setTimeout(()=>{ ind.className=''; ind.innerHTML=''; },10000);
-              }
-            }, 2000);
-          }
-        }catch(e){}
-      }, 10000);
-    }
+    if(localStorage.getItem('_last_auto_backup')===today) return;
+    let tries=0;
+    const timer=setInterval(function(){
+      try{
+        if(++tries>120){ clearInterval(timer); return; } // berhenti setelah ±10 menit
+        if(!currentUser || currentUser.role!=='admin') return; // tunggu admin login
+        const punya=(db.jadwal&&db.jadwal.length>0)||
+                    (db.suratTugas&&db.suratTugas.length>0)||
+                    (db.jenisKegiatan&&db.jenisKegiatan.length>0);
+        if(!punya) return; // tunggu data dimuat dari Cloud
+        clearInterval(timer);
+        localStorage.setItem('_last_auto_backup', today);
+        setTimeout(function(){
+          downloadBackupJSON();
+          try{ showToast('💾 Backup otomatis harian didownload','success'); }catch(e){}
+        }, 8000); // beri waktu data Cloud selesai sinkron
+      }catch(e){}
+    }, 5000);
   }catch(e){}
 })();
 
@@ -11937,6 +11933,21 @@ function _prSafeCloudWrite(fbDoc, data, key, allowShrink){
   });
 }
 
+// Baris yang belum diklik Simpan (_dirty) tidak ikut tersimpan: dikembalikan ke versi tersimpan (_snap) atau dilewati bila baru.
+function _prMarkDirty(r){
+  if(!r || r._dirty) return;
+  r._dirty=true;
+  r._snap=(r.nama||r.tanggal||r.jamMasuk||r.jamPulang) ? {nama:r.nama||"",tanggal:r.tanggal||"",jamMasuk:r.jamMasuk||"",jamPulang:r.jamPulang||""} : null;
+}
+function _prRowsForSave(){
+  const out=[];
+  rows.forEach(r=>{
+    if(r._dirty){ if(r._snap) out.push(Object.assign({},r._snap)); return; }
+    const c=Object.assign({},r); delete c._dirty; delete c._snap; out.push(c);
+  });
+  if(!out.length) out.push({nama:"",tanggal:"",jamMasuk:"",jamPulang:""});
+  return out;
+}
 function savePresensiDB(){
   try{
     if(typeof _prInited==='undefined' || !_prInited) return; // panel belum aktif → jangan simpan state kosong
@@ -11948,7 +11959,7 @@ function savePresensiDB(){
     }
     if(submitted){ try{ _prBonusSaldo=_prHitungSaldoAkhir(); }catch(e){ console.warn('saldo akhir gagal:',e); } }
     const data={
-      rows, submitted, published, tanggalMerah, tanggalCuti, keteranganTH, ambilLiburUsed, kuotaManual,
+      rows:_prRowsForSave(), submitted, published, tanggalMerah, tanggalCuti, keteranganTH, ambilLiburUsed, kuotaManual,
       bonusSaldo: _prBonusSaldo||undefined,
       settings:{
         bulan: document.getElementById("sBulan").value,
@@ -12057,7 +12068,7 @@ function loadPresensiDB(bulan, tahun){
           _prDirtyBeforeReady=false; // Firestore menang
           _prBaseSavedAt = fbSaved;
           _prCloudReadyKey = key;
-          _prNotif("info","☁️ Data diperbarui dari Cloud","Data presensi disinkronkan dari perangkat lain.");
+          _prNotif("silent","☁️ Data diperbarui dari Cloud","Data presensi disinkronkan dari perangkat lain.");
         } else {
           _prCloudReadyKey = key;
         }
@@ -12125,10 +12136,12 @@ function _startPresensiRealtimeSync(bulan, tahun){
       _prLastApplied = fbSaved;
       _prBaseSavedAt = fbSaved;
       // Reset & apply langsung dari Firestore — tanpa merge lokal
+      const _drafts=rows.filter(r=>r._dirty&&r._snap===null);
       rows=[{nama:"",tanggal:"",jamMasuk:"",jamPulang:""}];
       submitted=false; published=false; keteranganTH={}; ambilLiburUsed={}; kuotaManual={};
       tanggalMerah={}; tanggalCuti={};
       _applyPresensiData(fbData);
+      if(_drafts.length) rows=rows.concat(_drafts); // pertahankan input yang belum disimpan
       // Simpan ke localStorage agar freshLocalSaved akurat
       localStorage.setItem(key, JSON.stringify(fbData));
       // Re-render UI — TANPA autoSave agar tidak loop
@@ -12147,7 +12160,7 @@ function _startPresensiRealtimeSync(bulan, tahun){
         renderKirimStatus();
         _updateBtnHitung();
       }catch(e){ console.warn('[Realtime] Gagal re-render:', e); }
-      _prNotif("info","☁️ Data diperbarui dari Cloud","Data presensi disinkronkan dari perangkat lain secara otomatis.");
+      _prNotif("silent","☁️ Data diperbarui dari Cloud","Data presensi disinkronkan dari perangkat lain secara otomatis.");
     }catch(e){ console.warn('[Firebase] Gagal parse real-time presensi:', e); }
   }, function(err){ console.warn('[Firebase] onSnapshot presensi error:', err); });
 }
@@ -12229,7 +12242,7 @@ function onBulanChange(){
       const oldKey=getDbKey(_activeBulan, _activeTahun);
       try{
         const oldData={
-          rows, submitted, published, tanggalMerah, tanggalCuti, keteranganTH, ambilLiburUsed, kuotaManual,
+          rows:_prRowsForSave(), submitted, published, tanggalMerah, tanggalCuti, keteranganTH, ambilLiburUsed, kuotaManual,
           bonusSaldo: _prBonusSaldo||undefined,
           settings:{
             bulan:_activeBulan, tahun:_activeTahun,
@@ -12786,7 +12799,7 @@ function buildSummaryMap(){
 // ROWS RENDER
 // ═══════════════════════════════════════════════════════
 function addRow(){
-  const newRow = {nama:"",tanggal:"",jamMasuk:"",jamPulang:""};
+  const newRow = {nama:"",tanggal:"",jamMasuk:"",jamPulang:"",_dirty:true,_snap:null};
   rows.push(newRow);
   renderRows();
   autoSave();
@@ -12847,6 +12860,7 @@ function simpanBaris(i){
   const jpEl = document.getElementById('pr-jp-'+i);
   if(jmEl) r.jamMasuk  = jmEl.value;
   if(jpEl) r.jamPulang = jpEl.value;
+  delete r._dirty; delete r._snap; // commit: baru sekarang benar-benar tersimpan
   const targetRow = r; // simpan referensi objek, bukan index
   autoSave();
   _prSortRows();
@@ -12875,22 +12889,14 @@ function removeRow(i){
 
 let _renderTimer=null;
 function updateRow(i,f,v){
-  const targetRow = rows[i];
+  _prMarkDirty(rows[i]);
   rows[i][f]=v;
   autoSave();
   if(f==="nama"){
     // Hanya update data, jangan renderRows — mencegah kursor hilang saat mengetik
     // renderRows akan dipanggil oleh prNamaPilih setelah nama dipilih dari dropdown
   } else if(f==="tanggal"){
-    // Sort dan flash setelah tanggal diisi — selalu, tidak perlu submitted
-    _prSortRows();
-    renderRows();
-    requestAnimationFrame(()=>{
-      requestAnimationFrame(()=>{
-        const newIdx = rows.indexOf(targetRow);
-        if(newIdx>=0) _prFlashRow('pr-row-'+newIdx);
-      });
-    });
+    // Hanya simpan nilai — urut & scroll baru dilakukan saat tombol Simpan (simpanBaris)
   } else {
     if(!submitted) return;
     renderRows();
@@ -12908,6 +12914,10 @@ function getNameList(){
 
 function renderRows(){
   const cont=document.getElementById("rowsContainer");
+  // Batasi pilihan tanggal ke bulan & tahun yang sedang dipilih (picker langsung membuka bulan tsb)
+  const _bB=+document.getElementById("sBulan").value, _bT=+document.getElementById("sTahun").value;
+  const _lastD=new Date(_bT,_bB,0).getDate(), _p2=n=>String(n).padStart(2,"0");
+  const _prMonthMin=_bT+"-"+_p2(_bB)+"-01", _prMonthMax=_bT+"-"+_p2(_bB)+"-"+_p2(_lastD);
   const parts=[];
   rows.forEach((row,i)=>{
     const res=submitted?computeRow(row):null;
@@ -12992,7 +13002,7 @@ function renderRows(){
           ${ketBtn}
         </div>
         <div class="pr-date-wrap">
-          <input type="date" value="${esc(row.tanggal)}" class="pr-date-input${tglEmpty?" empty":""}" style="${tglBorder}"
+          <input type="date" value="${esc(row.tanggal)}" min="${_prMonthMin}" max="${_prMonthMax}" class="pr-date-input${tglEmpty?" empty":""}" style="${tglBorder}"
             onchange="updateRow(${i},'tanggal',this.value);this.classList.toggle('empty',!this.value)">
         </div>
         <input type="text" inputmode="numeric" maxlength="5" value="${esc(row.jamMasuk)}" placeholder="08:00"
@@ -13115,6 +13125,7 @@ function prNamaPilih(i, nama){
   if(dd)  dd.classList.remove('open');
   // Update data langsung tanpa trigger renderRows (cegah race condition DOM)
   if(rows[i] !== undefined){
+    _prMarkDirty(rows[i]);
     rows[i].nama = nama;
     autoSave();
   }
@@ -13144,7 +13155,7 @@ function prJamInput(el, i, field){
   if(v.length > 2) v = v.slice(0,2) + ':' + v.slice(2,4);
   el.value = v;
   // Simpan ke rows[] langsung (tanpa re-render) agar tidak ganggu pengetikan
-  if(rows[i] !== undefined) rows[i][field] = v;
+  if(rows[i] !== undefined){ _prMarkDirty(rows[i]); rows[i][field] = v; }
 }
 
 function prJamBlur(el, i, field){
@@ -17105,7 +17116,9 @@ ${allPages}
 function _prLoad(msg){const i=document.getElementById('save-indicator');if(i){i.className='saving';i.innerHTML='⏳ '+(msg||'Memuat…');}}
 function _prUnload(){const i=document.getElementById('save-indicator');if(i){i.className='';i.innerHTML='';}}
 function _prNotif(type,title,detail){
-  showToast((title||'')+(detail?' — '+detail:''),type==='success'?'success':'error');
+  // Notifikasi sinkronisasi cloud otomatis: senyap (tidak mengganggu), cukup log konsol
+  if(type==='silent'){ console.log('[Presensi]',title,detail||''); return; }
+  showToast((title||'')+(detail?' — '+detail:''),type==='success'?'success':(type==='info'?'':'error'));
 }
 
 // switchTab untuk presensi (pakai pr-tab class)
