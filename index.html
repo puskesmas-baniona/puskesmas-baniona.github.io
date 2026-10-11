@@ -1494,7 +1494,7 @@ loadDB();
     }catch(e){}
     // Juga paksa simpan data modul Presensi (punya skema penyimpanan & debounce sendiri)
     try{
-      clearTimeout(_prSaveTimer);
+      clearTimeout(_prSaveTimer); clearTimeout(_prCommitTimer);
       if(typeof savePresensiDB==='function' && document.getElementById('sBulan')){
         savePresensiDB();
       }
@@ -11745,6 +11745,61 @@ function _prHitungSaldoAkhir(){
   Object.keys(m).forEach(function(n){ out[n]=m[n].bonusSisa||0; });
   return out;
 }
+// Pastikan saldo akhir bulan aktif tersimpan & mutakhir (agar terbawa ke bulan berikutnya).
+// Dijalankan setelah data bulan ini dan saldo awal (bulan lalu) sama-sama selesai dimuat.
+let _prSaldoAwalSiapKey = "";
+function _prSinkronSaldoAkhir(){
+  try{
+    const key=getDbKey();
+    if(!submitted || _prSaldoAwalSiapKey!==key || !_prCloudReady(key)) return;
+    const baru=_prHitungSaldoAkhir();
+    if(JSON.stringify(baru)!==JSON.stringify(_prBonusSaldo||{})){
+      _prBonusSaldo=baru;
+      autoSave(); // simpan ke lokal + cloud → bulan berikutnya ikut membaca
+    }
+  }catch(e){ console.warn('[Saldo] sinkron saldo akhir gagal:', e); }
+}
+// Baca data presensi satu bulan (Firestore dulu, fallback localStorage)
+function _prBacaDataBulan(b,t){
+  let lokal=null;
+  try{ lokal=JSON.parse(localStorage.getItem(getDbKey(b,t))||"null"); }catch(e){}
+  const fb=_getPresensiFirestoreDoc(b,t);
+  if(!fb) return Promise.resolve(lokal);
+  return fb.get().then(function(snap){
+    if(!snap.exists) return lokal;
+    try{ return JSON.parse(snap.data().data); }catch(e){ return lokal; }
+  }).catch(function(){ return lokal; });
+}
+// Hitung saldo akhir sebuah bulan dari datanya (tanpa mengubah state aplikasi: state dipinjam lalu dikembalikan)
+function _prHitungSaldoDariData(d,b,t,saldoAwal){
+  const elB=document.getElementById("sBulan"), elT=document.getElementById("sTahun");
+  const keep={rows,tanggalMerah,tanggalCuti,keteranganTH,ambilLiburUsed,kuotaManual,_prSaldoAwal,_summaryMap,
+              b:elB.value,t:elT.value};
+  try{
+    rows=(d.rows&&d.rows.length)?d.rows:[]; tanggalMerah=d.tanggalMerah||{}; tanggalCuti=d.tanggalCuti||{};
+    keteranganTH=d.keteranganTH||{}; ambilLiburUsed=d.ambilLiburUsed||{}; kuotaManual=d.kuotaManual||{};
+    _prSaldoAwal=saldoAwal||{}; elB.value=b; elT.value=t;
+    invalidateRowCache();
+    return _prHitungSaldoAkhir();
+  } finally {
+    rows=keep.rows; tanggalMerah=keep.tanggalMerah; tanggalCuti=keep.tanggalCuti; keteranganTH=keep.keteranganTH;
+    ambilLiburUsed=keep.ambilLiburUsed; kuotaManual=keep.kuotaManual; _prSaldoAwal=keep._prSaldoAwal; _summaryMap=keep._summaryMap;
+    elB.value=keep.b; elT.value=keep.t; invalidateRowCache();
+  }
+}
+// Saldo akhir bulan b/t: pakai yang tersimpan (bonusSaldo); jika belum ada, hitung dari data bulan itu
+function _prSaldoAkhirBulan(b,t,depth){
+  return _prBacaDataBulan(b,t).then(function(d){
+    if(!d||d.deleted) return null;
+    const tersimpan=_prSaldoDariData(d);
+    if(tersimpan) return tersimpan;
+    if(depth>=6 || !(d.rows&&d.rows.some(function(r){return r&&r.nama&&String(r.nama).trim();}))) return null;
+    const pv=_prBulanSebelumnya(b,t);
+    return _prSaldoAkhirBulan(pv.b,pv.t,depth+1).then(function(sa){
+      return _prHitungSaldoDariData(d,b,t,sa||{});
+    });
+  });
+}
 // Muat saldo awal dari bulan sebelumnya (Firestore dulu, fallback localStorage)
 function _prMuatSaldoAwal(bulan, tahun){
   const pv=_prBulanSebelumnya(bulan,tahun);
@@ -11761,16 +11816,13 @@ function _prMuatSaldoAwal(bulan, tahun){
       else { const t=document.getElementById('tab-rekap'); if(t&&t.classList.contains('active')) renderRekapPraHitung(); }
     }catch(e){ console.warn('[Saldo] render ulang gagal:', e); }
   };
+  const selesai=function(){ if(getDbKey()===forKey){ _prSaldoAwalSiapKey=forKey; _prSinkronSaldoAkhir(); } };
   let lokal=null;
   try{ lokal=_prSaldoDariData(JSON.parse(localStorage.getItem(pvKey)||"null")); }catch(e){}
   if(lokal) terapkan(lokal);
-  const fbDoc=_getPresensiFirestoreDoc(pv.b,pv.t);
-  if(fbDoc){
-    fbDoc.get().then(function(snap){
-      if(!snap.exists){ terapkan(lokal); return; }
-      try{ const d=JSON.parse(snap.data().data); terapkan(d&&!d.deleted?_prSaldoDariData(d):null); }catch(e){}
-    }).catch(function(){});
-  }
+  // Ambil saldo akhir bulan lalu; bila belum tercatat, dihitung dari data bulan itu (berantai ke bulan-bulan sebelumnya)
+  _prSaldoAkhirBulan(pv.b,pv.t,0).then(function(sa){ terapkan(sa||lokal); selesai(); })
+    .catch(function(e){ console.warn('[Saldo] gagal ambil saldo bulan lalu:',e); selesai(); });
 }
 
 function getBonusPool(){
@@ -11939,16 +11991,18 @@ function _prMarkDirty(r){
   r._dirty=true;
   r._snap=(r.nama||r.tanggal||r.jamMasuk||r.jamPulang) ? {nama:r.nama||"",tanggal:r.tanggal||"",jamMasuk:r.jamMasuk||"",jamPulang:r.jamPulang||""} : null;
 }
-function _prRowsForSave(){
+function _prRowsForSave(noCommit){
   const out=[];
   rows.forEach(r=>{
+    // Auto-commit: baris lengkap (nama + tanggal) dianggap tersimpan walau Simpan belum diklik
+    if(!noCommit && r._dirty && (r.nama||"").trim() && (r.tanggal||"").trim()){ delete r._dirty; delete r._snap; }
     if(r._dirty){ if(r._snap) out.push(Object.assign({},r._snap)); return; }
     const c=Object.assign({},r); delete c._dirty; delete c._snap; out.push(c);
   });
   if(!out.length) out.push({nama:"",tanggal:"",jamMasuk:"",jamPulang:""});
   return out;
 }
-function savePresensiDB(){
+function savePresensiDB(noCommit){
   try{
     if(typeof _prInited==='undefined' || !_prInited) return; // panel belum aktif → jangan simpan state kosong
     const _guardKey=getDbKey();
@@ -11959,7 +12013,7 @@ function savePresensiDB(){
     }
     if(submitted){ try{ _prBonusSaldo=_prHitungSaldoAkhir(); }catch(e){ console.warn('saldo akhir gagal:',e); } }
     const data={
-      rows:_prRowsForSave(), submitted, published, tanggalMerah, tanggalCuti, keteranganTH, ambilLiburUsed, kuotaManual,
+      rows:_prRowsForSave(noCommit===true), submitted, published, tanggalMerah, tanggalCuti, keteranganTH, ambilLiburUsed, kuotaManual,
       bonusSaldo: _prBonusSaldo||undefined,
       settings:{
         bulan: document.getElementById("sBulan").value,
@@ -12000,7 +12054,7 @@ function _applyPresensiData(data){
 
 function loadPresensiDB(bulan, tahun){
   const key=getDbKey(bulan, tahun);
-  _prSaldoAwal={}; _prBonusSaldo=null;
+  _prSaldoAwal={}; _prBonusSaldo=null; _prSaldoAwalSiapKey="";
   { const _bb=bulan||document.getElementById("sBulan").value, _tt=tahun||document.getElementById("sTahun").value;
     setTimeout(function(){ _prMuatSaldoAwal(+_bb,+_tt); },0); }
   // 1. Load localStorage dulu (cepat, tampil langsung)
@@ -12020,6 +12074,7 @@ function loadPresensiDB(bulan, tahun){
   if(!fbDoc){
     // Firebase tidak tersedia (mode lokal saja) → boleh simpan lokal
     _prCloudReadyKey = key;
+    setTimeout(_prSinkronSaldoAkhir,0);
   } else {
     const _loadFromCloud=function(retry){
     fbDoc.get({source:'server'}).then(snap=>{
@@ -12031,6 +12086,7 @@ function loadPresensiDB(bulan, tahun){
         _prBaseSavedAt = "";
         _prCloudReadyKey = key;
         if(_prDirtyBeforeReady){ _prDirtyBeforeReady=false; savePresensiDB(); }
+        _prSinkronSaldoAkhir();
         return;
       }
       try{
@@ -12068,9 +12124,11 @@ function loadPresensiDB(bulan, tahun){
           _prDirtyBeforeReady=false; // Firestore menang
           _prBaseSavedAt = fbSaved;
           _prCloudReadyKey = key;
+          _prSinkronSaldoAkhir();
           _prNotif("silent","☁️ Data diperbarui dari Cloud","Data presensi disinkronkan dari perangkat lain.");
         } else {
           _prCloudReadyKey = key;
+          _prSinkronSaldoAkhir();
         }
       }catch(e){ console.warn('[Firebase] Gagal parse presensi dari Firestore:', e); }
     }).catch(err=>{
@@ -12291,10 +12349,14 @@ function onBulanChange(){
   onSettingChange();
 }
 
-let _prSaveTimer=null;
+let _prSaveTimer=null, _prCommitTimer=null;
 function autoSave(){
   clearTimeout(_prSaveTimer);
-  _prSaveTimer=setTimeout(savePresensiDB, 400);
+  _prSaveTimer=setTimeout(function(){ savePresensiDB(true); }, 400);
+  // Auto-simpan: baris lengkap (nama + tanggal) otomatis di-commit
+  // setelah berhenti mengetik ~1,5 detik, tanpa perlu klik Simpan.
+  clearTimeout(_prCommitTimer);
+  _prCommitTimer=setTimeout(function(){ savePresensiDB(); }, 1500);
 }
 
 let _prCloudPending = false; // true = ada data lokal yg belum konfirmasi tersimpan ke Firestore
@@ -13211,6 +13273,9 @@ function _updateBtnHitung(){
 }
 
 function batalHitung(){
+  _prMintaPasswordAdmin('Batal Hitung', _batalHitungCore);
+}
+function _batalHitungCore(){
   const bulan=parseInt(document.getElementById('sBulan')?.value)||new Date().getMonth()+1;
   const tahun=parseInt(document.getElementById('sTahun')?.value)||new Date().getFullYear();
   const namaBulan=['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][bulan]||bulan;
@@ -13227,6 +13292,9 @@ function batalHitung(){
 }
 
 function hitungSekarang(){
+  _prMintaPasswordAdmin('Hitung Sekarang', _hitungSekarangCore);
+}
+function _hitungSekarangCore(){
   const bulan=parseInt(document.getElementById('sBulan')?.value)||new Date().getMonth()+1;
   const tahun=parseInt(document.getElementById('sTahun')?.value)||new Date().getFullYear();
   const namaBulan=['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][bulan]||bulan;
@@ -13408,9 +13476,10 @@ function renderRekapPraHitung(){
               :`<span style="font-size:10px;font-weight:600;color:#8896BB;white-space:nowrap">＋ Isi</span>`}
           </button>`;
         }).join('')}
-      </div>` : `<span style="font-size:12px;color:#C4CFEE">–</span>`;
+      </div>` : (bonusCutiInfo||"")+`<span style="font-size:12px;color:#C4CFEE">–</span>`;
 
     // Baris utama tabel — sama persis dengan renderSummary
+    const saldoTag = (s.totalKuota>0) ? '<div title="Sisa kuota ambil libur = saldo bulan lalu '+(s.saldoAwal||0)+' + bonus cuti bersama '+(s.bonusCutiTotal||0)+' + manual '+(s.kuotaTambahan||0)+' − terpakai '+(s.ambilLiburCount||0)+'" style="font-size:10px;font-weight:800;color:'+((s.bonusSisa||0)>0?'#7C3AED':'#DC2626')+';margin-top:2px;white-space:nowrap">⏩ '+(s.bonusSisa||0)+' sisa</div>' : '';
     const tr = document.createElement('tr');
     const expandId = `pra-expand-${idx}`;
     tr.innerHTML=`
@@ -13437,7 +13506,7 @@ function renderRekapPraHitung(){
           border:1.5px solid ${s.kuotaTambahan>0?'#C7D2FE':'#E2E8F0'};
           border-radius:7px;padding:2px 5px;font-size:10px;cursor:pointer;font-weight:700;white-space:nowrap">
           ${s.kuotaTambahan>0?'+'+s.kuotaTambahan:'+ Tambah'}
-        </button>
+        </button>${saldoTag}
       </td>
       <td style="text-align:center;padding:4px 3px"><button onclick="toggleDetail('${expandId}')" style="background:#EEF2FF;color:#3B5BDB;border:1px solid #C7D2FE;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap">▼</button></td>
       <td style="text-align:center;padding:4px 3px"><button onclick="openModalKetAll('${esc(nama)}')" style="background:#F0F4FF;color:#6B7A99;border:1px solid #D0D9F0;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap">⚙</button></td>`;
@@ -13655,8 +13724,9 @@ function renderSummary(){
               :`<span style="font-size:10px;font-weight:600;color:#8896BB;white-space:nowrap">＋ Isi</span>`}
           </button>`;
         }).join("")}
-      </div>` : `<span style="font-size:12px;color:#C4CFEE">–</span>`;
+      </div>` : (bonusCutiInfo||"")+`<span style="font-size:12px;color:#C4CFEE">–</span>`;
 
+    const saldoTag = (s.totalKuota>0) ? '<div title="Sisa kuota ambil libur = saldo bulan lalu '+(s.saldoAwal||0)+' + bonus cuti bersama '+(s.bonusCutiTotal||0)+' + manual '+(s.kuotaTambahan||0)+' − terpakai '+(s.ambilLiburCount||0)+'" style="font-size:10px;font-weight:800;color:'+((s.bonusSisa||0)>0?'#7C3AED':'#DC2626')+';margin-top:2px;white-space:nowrap">⏩ '+(s.bonusSisa||0)+' sisa</div>' : '';
     const tr=document.createElement("tr");
     const expandId=`expand-${idx}`;
     tr.innerHTML=`
@@ -13683,7 +13753,7 @@ function renderSummary(){
           border:1.5px solid ${s.kuotaTambahan>0?"#C7D2FE":"#E2E8F0"};
           border-radius:7px;padding:2px 5px;font-size:10px;cursor:pointer;font-weight:700;white-space:nowrap">
           ${s.kuotaTambahan>0?"+"+s.kuotaTambahan:"+ Tambah"}
-        </button>
+        </button>${saldoTag}
       </td>
       <td style="text-align:center;padding:4px 3px"><button onclick="toggleDetail('${expandId}')" style="background:#EEF2FF;color:#3B5BDB;border:1px solid #C7D2FE;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap">▼</button></td>
       <td style="text-align:center;padding:4px 3px"><button onclick="openModalKetAll('${esc(nama)}')" style="background:#F0F4FF;color:#6B7A99;border:1px solid #D0D9F0;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap">⚙</button></td>`;
@@ -17293,8 +17363,42 @@ function autoIsiDariST(bulan, tahun, silent){
   return ditambah;
 }
 
-// Sinkronisasi Surat Tugas → keterangan Dinas di Presensi
+// ── Minta password admin sebelum aksi sensitif (mengikuti password login admin: db.adminUser.password) ──
+function _prMintaPasswordAdmin(judul, onOk){
+  const old=document.getElementById('pr-pw-modal'); if(old) old.remove();
+  const wrap=document.createElement('div');
+  wrap.id='pr-pw-modal';
+  wrap.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  wrap.innerHTML=
+    '<div style="background:#fff;border-radius:14px;padding:22px;width:100%;max-width:340px;box-shadow:0 10px 40px rgba(0,0,0,.3)">'+
+      '<div style="font-size:16px;font-weight:800;color:#1E2A4A;margin-bottom:4px">🔒 '+judul+'</div>'+
+      '<div style="font-size:12px;color:#6b7280;margin-bottom:12px">Masukkan password admin untuk melanjutkan.</div>'+
+      '<input type="password" id="pr-pw-input" autocomplete="new-password" placeholder="Password admin" style="width:100%;box-sizing:border-box;border:1.5px solid #D0D9F0;border-radius:10px;padding:10px 12px;font-size:14px;outline:none">'+
+      '<div id="pr-pw-err" style="display:none;color:#DC2626;font-size:12px;font-weight:600;margin-top:6px">Password salah.</div>'+
+      '<div style="display:flex;gap:8px;margin-top:14px">'+
+        '<button type="button" id="pr-pw-cancel" style="flex:1;padding:10px;border:1.5px solid #D0D9F0;background:#fff;border-radius:10px;font-weight:700;cursor:pointer">Batal</button>'+
+        '<button type="button" id="pr-pw-ok" style="flex:1;padding:10px;border:none;background:#16a34a;color:#fff;border-radius:10px;font-weight:700;cursor:pointer">Lanjut</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(wrap);
+  const inp=document.getElementById('pr-pw-input'), err=document.getElementById('pr-pw-err');
+  const tutup=()=>{ wrap.remove(); };
+  const cek=()=>{
+    const au=db.adminUser||{username:'admin',password:'admin123'};
+    if(inp.value.trim()===au.password){ tutup(); onOk(); }
+    else{ err.style.display='block'; inp.value=''; inp.focus(); }
+  };
+  document.getElementById('pr-pw-ok').onclick=cek;
+  document.getElementById('pr-pw-cancel').onclick=tutup;
+  inp.addEventListener('keydown',function(e){ if(e.key==='Enter') cek(); if(e.key==='Escape') tutup(); });
+  setTimeout(()=>inp.focus(),50);
+}
+
+// Sinkronisasi Surat Tugas → keterangan Dinas di Presensi (diminta password admin dulu)
 function doSyncFromST(){
+  _prMintaPasswordAdmin('Sinkronisasi Surat Tugas', _doSyncFromSTCore);
+}
+function _doSyncFromSTCore(){
   const bulan=parseInt(document.getElementById('sBulan')?.value)||new Date().getMonth()+1;
   const tahun=parseInt(document.getElementById('sTahun')?.value)||new Date().getFullYear();
   const namaBulan=['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][bulan]||bulan;
@@ -17316,6 +17420,19 @@ function doSyncFromST(){
       ids.forEach(pid=>{const peg=pegMap[pid];if(peg)dinasMap[peg.nama+'||'+tgl]=st.nomorST;});
     }
   });
+  // Simpan posisi SEBELUM sinkron (hanya sekali per bulan) agar "Batal Sinkron" bisa mengembalikan persis
+  const _preKey='presensi_presync_'+getDbKey();
+  const _hadSnap=!!localStorage.getItem(_preKey);
+  if(!_hadSnap){
+    try{
+      localStorage.setItem(_preKey, JSON.stringify({
+        rows: rows.map(r=>{const c=Object.assign({},r);delete c._dirty;delete c._snap;return c;}),
+        keteranganTH: JSON.parse(JSON.stringify(keteranganTH||{})),
+        submitted: !!submitted,
+        at: new Date().toISOString()
+      }));
+    }catch(e){ console.warn('[doSyncFromST] gagal simpan posisi awal:',e); }
+  }
   // PERBAIKAN: bangun adaSet dari rows (bukan hanya namaSet) agar baris baru bisa ditambahkan
   const adaSet=new Set(rows.filter(r=>r.nama&&r.tanggal).map(r=>r.nama+'||'+r.tanggal));
   let applied=0,skipped=0,ditambahBaris=0;
@@ -17345,6 +17462,7 @@ function doSyncFromST(){
     showToast('✅ '+msg,'success');
     if(el)el.textContent=msg+(skipped>0?', '+skipped+' dilewati':'');
   }else{
+    if(!_hadSnap) localStorage.removeItem(_preKey); // tidak ada perubahan → tidak perlu posisi awal
     showToast('Tidak ada perubahan ('+skipped+' sudah terisi)','success');
     if(el)el.textContent='Tidak ada perubahan';
   }
@@ -17355,6 +17473,37 @@ function doSyncFromST(){
 // ── Batal Sinkronisasi dari Surat Tugas ──────────────────────────────────────
 // Hapus semua baris & keterangan yang sebelumnya ditambahkan oleh doSyncFromST
 function batalSinkronST(){
+  _prMintaPasswordAdmin('Batal Sinkronisasi', _batalSinkronSTCore);
+}
+function _batalSinkronSTCore(){
+  // Jika ada posisi sebelum sinkron → kembalikan persis seperti semula (tanpa tambah/kurang)
+  const _preKey='presensi_presync_'+getDbKey();
+  let _pre=null;
+  try{ _pre=JSON.parse(localStorage.getItem(_preKey)||'null'); }catch(e){ _pre=null; }
+  if(_pre && Array.isArray(_pre.rows)){
+    if(!confirm('Batal Sinkronisasi\n\nData presensi bulan ini akan dikembalikan persis seperti sebelum sinkronisasi (tanpa penambahan atau pengurangan).\n\nPerubahan yang Anda buat SETELAH sinkronisasi juga ikut dikembalikan.\n\nLanjutkan?')) return;
+    rows=_pre.rows.length?_pre.rows:[{nama:'',tanggal:'',jamMasuk:'',jamPulang:''}];
+    keteranganTH=_pre.keteranganTH||{};
+    submitted=!!_pre.submitted;
+    localStorage.removeItem(_preKey);
+    try{ invalidateRowCache(); renderRows(); }catch(e){}
+    savePresensiDB(); _summaryMap=buildSummaryMap();
+    try{ renderSummary(); }catch(e){}
+    try{ renderRekapPraHitung(); }catch(e){}
+    try{ renderKalender(); }catch(e){}
+    try{
+      const fbDoc=_getPresensiFirestoreDoc();
+      if(fbDoc){
+        const _fsSavedAt=new Date().toISOString();
+        _prOwnSave=_fsSavedAt;
+        const _rawAfter=localStorage.getItem(getDbKey());
+        fbDoc.set({data:_rawAfter||'{}', updatedAt:_fsSavedAt, forceSyncAt:_fsSavedAt});
+      }
+    }catch(e){console.warn('[batalSinkronST] forceSync gagal:',e);}
+    showToast('↩️ Dikembalikan ke posisi sebelum sinkronisasi','success');
+    const _el=document.getElementById('pr-sync-result'); if(_el) _el.textContent='Dikembalikan ke posisi sebelum sinkronisasi';
+    return;
+  }
   const bulan=parseInt(document.getElementById('sBulan')?.value)||new Date().getMonth()+1;
   const tahun=parseInt(document.getElementById('sTahun')?.value)||new Date().getFullYear();
   const namaBulan=['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][bulan]||bulan;
@@ -17602,7 +17751,7 @@ function batalSinkronST(){
               <th style="font-size:10px" title="Perjalanan Dinas / UKM">✈️ Dinas</th>
               <th style="font-size:10px" title="Hadir (tanpa tap mesin)">✅ Hadir*</th>
               <th style="font-size:10px" title="Lainnya">📝 Lainnya</th>
-              <th style="font-size:10px">Bonus</th><th style="font-size:10px">Ambil</th><th style="font-size:10px">+</th>
+              <th style="font-size:10px">Bonus</th><th style="font-size:10px">Ambil</th><th style="font-size:10px;white-space:normal;min-width:80px">Kuota ambil libur</th>
               <th></th><th></th>
             </tr></thead>
             <tbody id="rekapBody"></tbody>
