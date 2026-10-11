@@ -12799,7 +12799,7 @@ function buildSummaryMap(){
 // ROWS RENDER
 // ═══════════════════════════════════════════════════════
 function addRow(){
-  const newRow = {nama:"",tanggal:"",jamMasuk:"",jamPulang:"",_dirty:true,_snap:null};
+  const newRow = {nama:"",tanggal:_prFilterTgl||"",jamMasuk:"",jamPulang:"",_dirty:true,_snap:null};
   rows.push(newRow);
   renderRows();
   autoSave();
@@ -12912,14 +12912,23 @@ function getNameList(){
   return out;
 }
 
+let _prFilterTgl="";
+function prSetFilterTgl(v){ _prFilterTgl=v||""; renderRows(); }
 function renderRows(){
   const cont=document.getElementById("rowsContainer");
   // Batasi pilihan tanggal ke bulan & tahun yang sedang dipilih (picker langsung membuka bulan tsb)
   const _bB=+document.getElementById("sBulan").value, _bT=+document.getElementById("sTahun").value;
   const _lastD=new Date(_bT,_bB,0).getDate(), _p2=n=>String(n).padStart(2,"0");
   const _prMonthMin=_bT+"-"+_p2(_bB)+"-01", _prMonthMax=_bT+"-"+_p2(_bB)+"-"+_p2(_lastD);
+  // Filter tanggal: hanya berlaku bila tanggal berada di bulan yang dipilih
+  if(_prFilterTgl && (_prFilterTgl<_prMonthMin || _prFilterTgl>_prMonthMax)) _prFilterTgl="";
+  const _fEl=document.getElementById("prFilterTgl");
+  if(_fEl){ _fEl.min=_prMonthMin; _fEl.max=_prMonthMax; if(_fEl.value!==_prFilterTgl) _fEl.value=_prFilterTgl; }
+  let _fCount=0;
   const parts=[];
   rows.forEach((row,i)=>{
+    const _hide=!!_prFilterTgl && !!row.tanggal && row.tanggal!==_prFilterTgl;
+    if(!_hide && _prFilterTgl && row.tanggal===_prFilterTgl) _fCount++;
     const res=submitted?computeRow(row):null;
     const isMerah=!!tanggalMerah[row.tanggal||""];
     const isCuti=!!tanggalCuti[row.tanggal||""];
@@ -12990,7 +12999,7 @@ function renderRows(){
 
     const ketBtn = "";
 
-    parts.push(`<div class="grid-input" id="pr-row-${i}" style="${rowBg}">
+    parts.push(`<div class="grid-input" id="pr-row-${i}" style="${rowBg}${_hide?";display:none":""}">
         <div class="pr-nama-wrap">
           <input type="text" value="${esc(row.nama)}" placeholder="Nama pegawai..." autocomplete="off"
             class="pr-input" style="${namaBorder};width:100%"
@@ -13020,6 +13029,8 @@ function renderRows(){
       ${badges?`<div class="inline-badges">${badges}</div>`:""}`);
   });
   cont.innerHTML=parts.join("");
+  const _fInfo=document.getElementById("prFilterInfo");
+  if(_fInfo) _fInfo.textContent=_prFilterTgl?(_fCount+" data pada tanggal ini"):"Menampilkan semua tanggal";
 }
 
 // ═══════════════════════════════════════════════════════
@@ -17536,6 +17547,12 @@ function batalSinkronST(){
           <h3 style="font-size:13px">📋 Data Presensi — <span id="periodeLabel" style="color:var(--teal)"></span></h3>
         </div>
         <div class="card-body" style="padding:12px 20px">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding:8px 10px;background:#f0fdfa;border:1px solid #99f6e4;border-radius:10px">
+            <label for="prFilterTgl" style="font-size:12px;font-weight:700;color:var(--teal)">📅 Filter Tanggal</label>
+            <input type="date" id="prFilterTgl" onchange="prSetFilterTgl(this.value)" style="border:1.5px solid var(--line);border-radius:8px;padding:6px 8px;font-size:13px">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="prSetFilterTgl('')">Semua</button>
+            <span id="prFilterInfo" style="font-size:12px;color:var(--muted)"></span>
+          </div>
           <div style="display:grid;grid-template-columns:1.7fr 130px 110px 110px 88px 36px 28px;gap:6px;margin-bottom:4px;padding:0 8px">
             <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Nama Pegawai</span>
             <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Tanggal</span>
