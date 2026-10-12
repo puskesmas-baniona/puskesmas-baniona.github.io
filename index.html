@@ -12188,7 +12188,7 @@ function _startPresensiRealtimeSync(bulan, tahun){
       const key = getDbKey(bulan, tahun);
       // Skip: save dari perangkat sendiri atau sudah pernah diapply
       if(!fbSaved) return;
-      if(fbSaved === _prOwnSave) return;
+      if(fbSaved === _prOwnSave || _prOwnSet[fbSaved]) return; // abaikan semua save milik sendiri (save beruntun)
       if(fbSaved === _prLastApplied) return;
       console.log('[Firebase] Real-time: data lebih baru dari perangkat lain — diterapkan ✅', fbSaved);
       _prLastApplied = fbSaved;
