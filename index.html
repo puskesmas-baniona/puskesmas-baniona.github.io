@@ -13819,12 +13819,56 @@ function renderSummary(){
     `${namaList.length} pegawai · ${hk.length} hari kerja · ${totalTidakHadir} tidak hadir · ${countTerlambat} terlambat`;
 }
 
+// Dropdown saran nama (nama lengkap + (nama panggilan)) untuk pencarian Rekap & Pra Rekap
+let _rekapSearchHL=-1;
+function rekapSearchDD(){
+  const inp=document.getElementById('rekapSearch'), dd=document.getElementById('rekapSearchDD');
+  if(!inp||!dd) return;
+  const q=inp.value.trim();
+  _rekapSearchHL=-1;
+  if(!q){ dd.classList.remove('open'); dd.innerHTML=''; return; }
+  const opts=_prNamaFilter(q);
+  if(!opts.length){ dd.classList.remove('open'); dd.innerHTML=''; return; }
+  dd.innerHTML=opts.map((p,oi)=>
+    '<div class="pr-nama-opt" data-oi="'+oi+'" data-nama="'+esc(p.nama)+'">'+
+      '<div>'+esc(p.nama)+(p.namaPanggilan?' <span style="color:#9ca3af;font-size:11px">('+esc(p.namaPanggilan)+')</span>':'')+'</div>'+
+      '<div class="opt-nip">'+(p.nip||'')+'</div></div>'
+  ).join('');
+  dd.classList.add('open');
+  dd.querySelectorAll('.pr-nama-opt').forEach(function(el){
+    el.addEventListener('pointerdown',function(e){ e.preventDefault(); rekapSearchPilih(el.dataset.nama); });
+  });
+}
+function rekapSearchPilih(nama){
+  const inp=document.getElementById('rekapSearch'), dd=document.getElementById('rekapSearchDD');
+  if(inp) inp.value=nama;
+  if(dd){ dd.classList.remove('open'); dd.innerHTML=''; }
+  filterRekapNama(nama);
+}
+function rekapSearchKey(e){
+  const dd=document.getElementById('rekapSearchDD');
+  if(!dd||!dd.classList.contains('open')) return;
+  const opts=dd.querySelectorAll('.pr-nama-opt');
+  const hl=function(){ opts.forEach((el,i)=>el.classList.toggle('highlighted',i===_rekapSearchHL)); if(opts[_rekapSearchHL]) opts[_rekapSearchHL].scrollIntoView({block:'nearest'}); };
+  if(e.key==='ArrowDown'){ e.preventDefault(); _rekapSearchHL=Math.min(_rekapSearchHL+1,opts.length-1); hl(); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); _rekapSearchHL=Math.max(_rekapSearchHL-1,0); hl(); }
+  else if(e.key==='Enter'){ if(_rekapSearchHL>=0&&opts[_rekapSearchHL]){ e.preventDefault(); rekapSearchPilih(opts[_rekapSearchHL].dataset.nama); } else dd.classList.remove('open'); }
+  else if(e.key==='Escape'){ dd.classList.remove('open'); }
+}
+document.addEventListener('click',function(e){
+  if(!e.target.closest('#rekapSearch')&&!e.target.closest('#rekapSearchDD')){
+    const dd=document.getElementById('rekapSearchDD'); if(dd) dd.classList.remove('open');
+  }
+});
+
 function filterRekapNama(q){
   const keyword=q.trim().toLowerCase();
   const tbody=document.getElementById("rekapBody");
   if(!tbody)return;
   const rows=tbody.querySelectorAll("tr");
   let visIdx=1;
+  const _pegByNama={};
+  try{ _prNamaPegList().forEach(p=>{ const k=String(p.nama||"").toLowerCase().replace(/\s+/g," ").trim(); if(k) _pegByNama[k]=String(p.namaPanggilan||"").toLowerCase()+" "+String(p.nip||""); }); }catch(e){}
   rows.forEach(tr=>{
     // skip detail rows (tidak punya sticky-col1)
     if(tr.id&&tr.id.startsWith("expand-")){
@@ -13836,7 +13880,10 @@ function filterRekapNama(q){
     const namaCell=tr.querySelector("td:nth-child(2)");
     if(!namaCell)return;
     const nama=namaCell.textContent.toLowerCase();
-    const match=!keyword||nama.includes(keyword);
+    // Cocokkan juga dengan nama panggilan (seperti di Input Presensi)
+    const _nk=nama.replace(/\s+/g," ").trim();
+    const _pg=_pegByNama[_nk]||"";
+    const match=!keyword||nama.includes(keyword)||_pg.includes(keyword);
     tr.style.display=match?"":"none";
     if(match){
       // update nomor urut sesuai hasil filter
@@ -17736,7 +17783,10 @@ function _batalSinkronSTCore(){
       <div class="card">
         <div class="card-header" style="padding:12px 20px;flex-wrap:wrap;gap:8px">
           <h3 style="font-size:13px;flex:1"><span id="rekapJudulPrefix">📋 Pra Rekap Presensi</span> — <span id="rekapPeriode" style="color:var(--teal)"></span></h3>
-          <input id="rekapSearch" type="text" placeholder="🔍 Cari nama..." oninput="filterRekapNama(this.value)" style="border:1.5px solid var(--line);border-radius:6px;padding:5px 10px;font-size:12px;outline:none;width:180px;transition:border-color .2s" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--line)'">
+          <div class="pr-nama-wrap" style="width:180px">
+            <input id="rekapSearch" type="text" autocomplete="off" placeholder="🔍 Cari nama..." oninput="filterRekapNama(this.value);rekapSearchDD()" onkeydown="rekapSearchKey(event)" style="border:1.5px solid var(--line);border-radius:6px;padding:5px 10px;font-size:12px;outline:none;width:100%;box-sizing:border-box;transition:border-color .2s" onfocus="this.style.borderColor='var(--teal)';rekapSearchDD()" onblur="this.style.borderColor='var(--line)'">
+            <div class="pr-nama-dd" id="rekapSearchDD" style="min-width:260px"></div>
+          </div>
         </div>
         <div style="overflow-x:auto;overflow-y:auto;max-height:70vh">
           <table class="rekap-table">
