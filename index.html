@@ -16519,6 +16519,11 @@ async function exportExcel(){
   // ══════════════════════════════════════════════════════════
   if(namaList.length){
     const rekapRows=[];
+    // Format durasi teks seperti "9 jam 57 mnt" / "10 jam" / "3 mnt" / "0 mnt"
+    const fmtDurasiTeks=m=>{m=Math.round(m||0);if(m<=0)return "0 mnt";const h=Math.floor(m/60),mn=m%60;return h===0?`${mn} mnt`:mn===0?`${h} jam`:`${h} jam ${mn} mnt`;};
+    // Rata-rata jam kerja efektif per hari (jadwal lama tetap; jadwal baru Okt 2026+ bervariasi per hari)
+    const _istr=getIstirahat();
+    const effPerHari=hk.length?hk.reduce((a,ds)=>{const j=jadwalKerja(ds,jmVal,jpVal);return a+Math.max(0,j.jp-j.jm-_istr);},0)/hk.length:effMins;
     namaList.forEach((nama,idx)=>{
       const s=_summaryMap[nama];if(!s)return;
       let terlambatHari=0,tepatHari=0,pulangCepatHari=0;
@@ -16553,14 +16558,16 @@ async function exportExcel(){
         if(res&&!res.skip&&res.jamKerjaAktual>0)totalJamMnt+=res.jamKerjaAktual;
       });
       const hJ=Math.floor(totalJamMnt/60),mJ=totalJamMnt%60;
-      const hadirTotalTemp=(s.hariHadir||0)+ketCounts.hadirManual;
+      const hadirTotalTemp=s.hariHadir||0; // hadir manual sudah termasuk di hariHadir (hindari hitung ganda)
       const persenHadir=hk.length>0?(hadirTotalTemp/hk.length*100):0;
       rekapRows.push({
         no:idx+1,nama,hariKerja:hk.length,hadir:s.hariHadir,tidakHadir:s.hariTidakHadir.length,
         terlambatHari,tepatWaktu:tepatHari,pulangCepat:pulangCepatHari,
-        totalTerlambatStr:s.totalTerlambat>0?minsToHHMM(s.totalTerlambat):"0:00",
-        totalPulangCepatStr:s.totalPulangCepat>0?minsToHHMM(s.totalPulangCepat):"0:00",
-        totalGabunganStr:(()=>{const g=(s.totalTerlambat||0)+(s.totalPulangCepat||0);return g>0?minsToHHMM(g):"0:00";})(),
+        totalTerlambatStr:fmtDurasiTeks(s.totalTerlambat),
+        totalPulangCepatStr:fmtDurasiTeks(s.totalPulangCepat),
+        totalGabunganStr:fmtDurasiTeks((s.totalTerlambat||0)+(s.totalPulangCepat||0)),
+        // Sisa hari kerja efektif = hari kerja − tidak hadir − (total terlambat+pulang cepat ÷ jam efektif per hari, dibulatkan)
+        sisaHariEfektif:Math.max(0,hk.length-s.hariTidakHadir.length-(effPerHari>0?Math.round(((s.totalTerlambat||0)+(s.totalPulangCepat||0))/effPerHari):0)),
         alpa:ketCounts.alpa,sakit:ketCounts.sakit,ijin:ketCounts.ijin,
         ambilCuti:ketCounts.cuti,ambilLibur:ketCounts.ambildibur,dinasUkm:ketCounts.dinasUkm,
         tanpaKet:tanpaKetCount,
@@ -16572,12 +16579,12 @@ async function exportExcel(){
     const bulanNama=BULAN_NAMES[b-1];
     const COLS2=["No","Nama Pegawai","Total Hari Kerja","Hadir","Tidak Hadir",
       "Tanpa Keterangan","Sakit","Ijin","Ambil Cuti","Ambil Libur","Perj. Dinas/UKM","Belum Diisi Ket.",
-      "Terlambat (hari)","Tepat Waktu","Pulang Cepat","Total Terlambat (H:M)","Total Pulang Cepat (H:M)",
-      "Total Terlambat+Pulang Cepat (H:M)"];
+      "Terlambat (hari)","Tepat Waktu","Pulang Cepat","Total Terlambat","Total Pulang Cepat",
+      "Total Terlambat + Pulang Cepat","Sisa Hari Kerja Efektif"];
     const ws2=workbook.addWorksheet("Rekap per Pegawai",{views:[{state:"frozen",ySplit:4}]});
     ws2.columns=[{width:5},{width:32},{width:15},{width:9},{width:12},
       {width:9},{width:9},{width:9},{width:12},{width:12},{width:16},{width:14},
-      {width:15},{width:12},{width:12},{width:20},{width:20},{width:20}];
+      {width:15},{width:12},{width:12},{width:20},{width:20},{width:20},{width:22}];
 
     ws2.mergeCells(1,1,1,COLS2.length);
     const t2=ws2.getCell(1,1);t2.value=`REKAP PRESENSI PEGAWAI — ${bulanNama.toUpperCase()} ${t}`;styleTitle(t2);
@@ -16597,7 +16604,7 @@ async function exportExcel(){
         r.alpa,r.sakit,r.ijin,r.ambilCuti,r.ambilLibur,r.dinasUkm,r.tanpaKet,
         r.terlambatHari,r.tepatWaktu,r.pulangCepat,
         r.totalTerlambatStr,r.totalPulangCepatStr,
-        r.totalGabunganStr];
+        r.totalGabunganStr,r.sisaHariEfektif+" hari"];
       const zebra=i%2===1;
       vals.forEach((v,ci)=>{
         const cell=row.getCell(ci+1);cell.value=v;
