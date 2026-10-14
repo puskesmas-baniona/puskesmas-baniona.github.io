@@ -16106,7 +16106,7 @@ function showNamaMapModal(namaAsingList){
       ⚠ Ditemukan <b>${namaAsingList.length} nama</b> di file presensi yang tidak cocok dengan data pegawai.
       Pilih nama resmi yang sesuai agar sinkronisasi Surat Tugas berjalan dengan benar.
     </div>
-    <div style="overflow-x:auto">
+    <div style="overflow:visible;padding-bottom:260px">
       <table style="width:100%;border-collapse:collapse">
         <thead><tr>
           <th style="padding:8px 12px;background:var(--bg);font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);text-align:left">Nama di File Presensi</th>
@@ -16131,18 +16131,30 @@ function showNamaMapModal(namaAsingList){
 
 function nmBuildOptions(naAsli, idx, query){
   const q = query.toLowerCase().trim();
-  const peg = _nmDaftarPeg.filter(p=>
-    !q ||
-    p.nama.toLowerCase().includes(q) ||
-    (p.namaPanggilan||'').toLowerCase().includes(q) ||
-    p.nip.includes(q)
-  );
+  const qn = q.replace(/[^a-z0-9]/g,'');
+  const norm = v => String(v==null?'':v).toLowerCase().replace(/[^a-z0-9]/g,'');
+  const toks = q.split(/\s+/).filter(Boolean).map(t=>t.replace(/[^a-z0-9]/g,'')).filter(Boolean);
+  let peg = _nmDaftarPeg.filter(p=>{
+    if(!q) return true;
+    const gab = norm(p.nama)+' '+norm(p.namaPanggilan)+' '+norm(p.nip);
+    const nm = norm(p.nama), pg = norm(p.namaPanggilan);
+    return toks.every(t=>gab.includes(t)) || (qn && (nm.includes(qn)||pg.includes(qn)));
+  });
+  // Jika tidak ada yang cocok persis, tampilkan yang paling mirip (toleran salah ketik)
+  if(q && !peg.length){
+    peg = _nmDaftarPeg
+      .map(p=>({p, s:Math.max(namaSimilarity(q, String(p.nama||'')), p.namaPanggilan?namaSimilarity(q, String(p.namaPanggilan)):0)}))
+      .filter(x=>x.s>=0.35)
+      .sort((a,b)=>b.s-a.s)
+      .slice(0,8)
+      .map(x=>x.p);
+  }
   let html = `<div class="nm-option abaikan" onclick="nmPilih(${idx},'${naAsli.replace(/'/g,"\\'")}','')">— Abaikan (biarkan nama asli) —</div>`;
   html += peg.map(p=>{
     const aktif = _nmSelected[naAsli]===p.nama ? ' active' : '';
     return `<div class="nm-option${aktif}" onclick="nmPilih(${idx},'${naAsli.replace(/'/g,"\\'")}','${p.nama.replace(/'/g,"\\'")}')">
       ${p.nama}${p.namaPanggilan?` <span style="color:var(--teal);font-size:11px;font-weight:600">(${p.namaPanggilan})</span>`:''}
-      <div class="sub">${p.nip} · ${p.jabatan}</div>
+      <div class="sub">${p.nip||'-'} · ${p.jabatan||'-'}</div>
     </div>`;
   }).join('');
   if(!peg.length && q) html += `<div style="padding:10px 14px;font-size:12px;color:var(--muted);text-align:center">Tidak ditemukan</div>`;
@@ -16582,7 +16594,7 @@ async function exportExcel(){
     rekapRows.forEach((r,i)=>{
       const row=ws2.getRow(5+i);
       const vals=[r.no,r.nama,r.hariKerja,r.hadirTotal,r.tidakHadir,
-        r.alpa,r.sakit,r.ijin,r.ambilLibur,r.ambilCuti,r.dinasUkm,r.tanpaKet,
+        r.alpa,r.sakit,r.ijin,r.ambilCuti,r.ambilLibur,r.dinasUkm,r.tanpaKet,
         r.terlambatHari,r.tepatWaktu,r.pulangCepat,
         r.totalTerlambatStr,r.totalPulangCepatStr,
         r.totalGabunganStr];
