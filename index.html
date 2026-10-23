@@ -681,6 +681,10 @@
   .rekap-table{border-collapse:separate;border-spacing:0}
   .rekap-table th,.rekap-table td{border-bottom:1px solid var(--line)}
   .rekap-table thead th{position:sticky;top:0;z-index:3}
+  /* Rekap presensi: header & kolom dipadatkan agar muat tanpa scroll kanan */
+  .rekap-table thead th{padding:8px 3px;text-align:center;font-size:9px !important;letter-spacing:0;text-transform:uppercase;line-height:1.2;white-space:normal;word-break:break-word}
+  .rekap-table tbody td,.rekap-table tfoot td{padding-left:2px;padding-right:2px}
+  .rekap-table thead th.sticky-col2{text-align:left;padding-left:6px}
   .rekap-table .sticky-col1{position:sticky;left:0;z-index:2;background:var(--white);min-width:32px;max-width:32px;width:32px}
   .rekap-table thead .sticky-col1{z-index:4;background:var(--bg)}
   .rekap-table .sticky-col2{position:sticky;left:32px;z-index:2;background:var(--white);box-shadow:2px 0 6px rgba(0,0,0,.08)}
@@ -1070,6 +1074,7 @@
       <div id="panel-cetak-st-peg" class="panel"></div>
       <div id="panel-buat-lpd"     class="panel"></div>
       <div id="panel-presensi" class="panel"></div>
+      <div id="panel-unduh-rekap" class="panel"></div>
       <div id="panel-pengaturan-admin" class="panel"></div>
     </div>
   </div>
@@ -2047,6 +2052,7 @@ function buildSidebar(){
     h+=ni('semua-st','📋','Semua Surat Tugas');
     h+=`<div class="nav-section">Presensi</div>`;
     h+=ni('presensi','🗓️','Rekap Presensi');
+    h+=ni('unduh-rekap','📥','Unduh Rekap Presensi');
     h+=`<div class="nav-section">Pengaturan</div>`;
     h+=ni('pengaturan-admin','⚙️','Pengaturan');
   } else if(currentUser.role==='manajemen'){
@@ -2069,6 +2075,7 @@ function buildSidebar(){
     h+=ni('presensi-peg','🗓️','Presensi Saya');
     h+=`<div class="nav-section">Kepegawaian</div>`;
     h+=ni('presensi','🗓️','Rekap Presensi');
+    h+=ni('unduh-rekap','📥','Unduh Rekap Presensi');
   } else {
     h+=`<div class="nav-section">Menu</div>`;
     h+=ni('dashboard','📊','Dashboard');
@@ -2208,11 +2215,11 @@ function navigateTo(panel){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   const p=document.getElementById('panel-'+panel);
   if(p)p.classList.add('active');
-  const titles={dashboard:'Dashboard',pegawai:'Data Pegawai',lokasi:'Lokasi Kegiatan','impor':'Impor Data Excel','buat-st':'Buat Surat Tugas',riwayat:'Riwayat Surat Tugas','semua-st':'Semua Surat Tugas',jadwal:'Jadwal Kegiatan','kalender-peg':'Kalender Kegiatan Saya','tambah-jadwal':'Tambah Jadwal Kegiatan','jenis-kegiatan':'Jenis Kegiatan',rpk:'Rencana Pelaksanaan Kegiatan','biaya-dinas':'Biaya Perjalanan Dinas',matrix:'Matrix Kegiatan','daftar-bayar':'Daftar Bayar','pengaturan-mgmt':'Pengaturan Manajemen',presensi:'Rekap Presensi Pegawai','presensi-peg':'Presensi Saya','jadwal-piket':'Jadwal Piket Pegawai','pengaturan-admin':'Pengaturan','cetak-st-peg':'Cetak Surat Tugas','surat-pemberitahuan':'Surat Pemberitahuan UKM','buat-lpd':'Buat Laporan Kegiatan (LPD)'};
+  const titles={dashboard:'Dashboard',pegawai:'Data Pegawai',lokasi:'Lokasi Kegiatan','impor':'Impor Data Excel','buat-st':'Buat Surat Tugas',riwayat:'Riwayat Surat Tugas','semua-st':'Semua Surat Tugas',jadwal:'Jadwal Kegiatan','kalender-peg':'Kalender Kegiatan Saya','tambah-jadwal':'Tambah Jadwal Kegiatan','jenis-kegiatan':'Jenis Kegiatan',rpk:'Rencana Pelaksanaan Kegiatan','biaya-dinas':'Biaya Perjalanan Dinas',matrix:'Matrix Kegiatan','daftar-bayar':'Daftar Bayar','pengaturan-mgmt':'Pengaturan Manajemen',presensi:'Rekap Presensi Pegawai','unduh-rekap':'Unduh Rekap Presensi','presensi-peg':'Presensi Saya','jadwal-piket':'Jadwal Piket Pegawai','pengaturan-admin':'Pengaturan','cetak-st-peg':'Cetak Surat Tugas','surat-pemberitahuan':'Surat Pemberitahuan UKM','buat-lpd':'Buat Laporan Kegiatan (LPD)'};
   document.getElementById('topbar-title').textContent=titles[panel]||panel;
   document.getElementById('topbar-sub').textContent='UPTD Puskesmas Baniona';
   document.getElementById('topbar-actions').innerHTML='';
-  const rend={dashboard:renderDashboard,pegawai:renderPegawai,lokasi:renderLokasi,impor:renderImpor,'buat-st':renderBuatST,riwayat:renderRiwayat,'semua-st':renderSemuaST,jadwal:renderJadwal,'kalender-peg':renderKalenderPegawai,'tambah-jadwal':renderTambahJadwal,'jenis-kegiatan':renderJenisKegiatan,rpk:renderRPK,'biaya-dinas':renderBiayaDinas,matrix:renderMatrix,'daftar-bayar':renderDaftarBayar,'pengaturan-mgmt':renderPengaturanMgmt,'presensi-peg':renderPresensiPegawai,'jadwal-piket':renderJadwalPiket,'pengaturan-admin':renderPengaturanAdmin,'cetak-st-peg':renderCetakSTPeg,'surat-pemberitahuan':renderSuratPemberitahuan,'buat-lpd':renderBuatLPD};
+  const rend={dashboard:renderDashboard,pegawai:renderPegawai,lokasi:renderLokasi,impor:renderImpor,'buat-st':renderBuatST,riwayat:renderRiwayat,'semua-st':renderSemuaST,jadwal:renderJadwal,'kalender-peg':renderKalenderPegawai,'tambah-jadwal':renderTambahJadwal,'jenis-kegiatan':renderJenisKegiatan,rpk:renderRPK,'biaya-dinas':renderBiayaDinas,matrix:renderMatrix,'daftar-bayar':renderDaftarBayar,'pengaturan-mgmt':renderPengaturanMgmt,'presensi-peg':renderPresensiPegawai,'unduh-rekap':renderUnduhRekap,'jadwal-piket':renderJadwalPiket,'pengaturan-admin':renderPengaturanAdmin,'cetak-st-peg':renderCetakSTPeg,'surat-pemberitahuan':renderSuratPemberitahuan,'buat-lpd':renderBuatLPD};
   // Setiap kali masuk ke panel "Semua Surat Tugas" / "Daftar Bayar" lewat menu,
   // filter bulan-tahunnya otomatis disamakan dengan periode yang terakhir aktif
   // di RPK/Jadwal/Matrix, supaya tidak perlu pilih ulang bulan setiap pindah panel.
@@ -2225,6 +2232,7 @@ function navigateTo(panel){
     bayarFilterBulan=dp.bulan; bayarFilterTahun=dp.tahun;
   }
   if(panel==='presensi'&&currentUser.role!=='admin'&&currentUser.role!=='kepegawaian'){navigateTo('dashboard');return;}
+  if(panel==='unduh-rekap'&&currentUser.role!=='admin'&&currentUser.role!=='kepegawaian'){navigateTo('dashboard');return;}
   if(panel==='pengaturan-mgmt'&&currentUser.role!=='admin'){navigateTo('dashboard');return;}
   if(panel==='presensi-peg'&&currentUser.role!=='pegawai'&&currentUser.role!=='kepegawaian'){navigateTo('dashboard');return;}
   if(panel==='kalender-peg'&&currentUser.role!=='pegawai'&&currentUser.role!=='kepegawaian'){navigateTo('dashboard');return;}
@@ -2263,11 +2271,11 @@ function navigateBack(){
     document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
     const p=document.getElementById('panel-'+prev);
     if(p)p.classList.add('active');
-    const titles={dashboard:'Dashboard',pegawai:'Data Pegawai',lokasi:'Lokasi Kegiatan','impor':'Impor Data Excel','buat-st':'Buat Surat Tugas',riwayat:'Riwayat Surat Tugas','semua-st':'Semua Surat Tugas',jadwal:'Jadwal Kegiatan','kalender-peg':'Kalender Kegiatan Saya','tambah-jadwal':'Tambah Jadwal Kegiatan','jenis-kegiatan':'Jenis Kegiatan',rpk:'Rencana Pelaksanaan Kegiatan','biaya-dinas':'Biaya Perjalanan Dinas',matrix:'Matrix Kegiatan','daftar-bayar':'Daftar Bayar','pengaturan-mgmt':'Pengaturan Manajemen',presensi:'Rekap Presensi Pegawai','presensi-peg':'Presensi Saya','jadwal-piket':'Jadwal Piket Pegawai','pengaturan-admin':'Pengaturan','cetak-st-peg':'Cetak Surat Tugas','surat-pemberitahuan':'Surat Pemberitahuan UKM','buat-lpd':'Buat Laporan Kegiatan (LPD)'};
+    const titles={dashboard:'Dashboard',pegawai:'Data Pegawai',lokasi:'Lokasi Kegiatan','impor':'Impor Data Excel','buat-st':'Buat Surat Tugas',riwayat:'Riwayat Surat Tugas','semua-st':'Semua Surat Tugas',jadwal:'Jadwal Kegiatan','kalender-peg':'Kalender Kegiatan Saya','tambah-jadwal':'Tambah Jadwal Kegiatan','jenis-kegiatan':'Jenis Kegiatan',rpk:'Rencana Pelaksanaan Kegiatan','biaya-dinas':'Biaya Perjalanan Dinas',matrix:'Matrix Kegiatan','daftar-bayar':'Daftar Bayar','pengaturan-mgmt':'Pengaturan Manajemen',presensi:'Rekap Presensi Pegawai','unduh-rekap':'Unduh Rekap Presensi','presensi-peg':'Presensi Saya','jadwal-piket':'Jadwal Piket Pegawai','pengaturan-admin':'Pengaturan','cetak-st-peg':'Cetak Surat Tugas','surat-pemberitahuan':'Surat Pemberitahuan UKM','buat-lpd':'Buat Laporan Kegiatan (LPD)'};
     document.getElementById('topbar-title').textContent=titles[prev]||prev;
     document.getElementById('topbar-sub').textContent='UPTD Puskesmas Baniona';
     document.getElementById('topbar-actions').innerHTML='';
-    const rend={dashboard:renderDashboard,pegawai:renderPegawai,lokasi:renderLokasi,impor:renderImpor,'buat-st':renderBuatST,riwayat:renderRiwayat,'semua-st':renderSemuaST,jadwal:renderJadwal,'kalender-peg':renderKalenderPegawai,'tambah-jadwal':renderTambahJadwal,'jenis-kegiatan':renderJenisKegiatan,rpk:renderRPK,'biaya-dinas':renderBiayaDinas,matrix:renderMatrix,'daftar-bayar':renderDaftarBayar,'pengaturan-mgmt':renderPengaturanMgmt,'presensi-peg':renderPresensiPegawai,'jadwal-piket':renderJadwalPiket,'pengaturan-admin':renderPengaturanAdmin,'cetak-st-peg':renderCetakSTPeg,'surat-pemberitahuan':renderSuratPemberitahuan,'buat-lpd':renderBuatLPD};
+    const rend={dashboard:renderDashboard,pegawai:renderPegawai,lokasi:renderLokasi,impor:renderImpor,'buat-st':renderBuatST,riwayat:renderRiwayat,'semua-st':renderSemuaST,jadwal:renderJadwal,'kalender-peg':renderKalenderPegawai,'tambah-jadwal':renderTambahJadwal,'jenis-kegiatan':renderJenisKegiatan,rpk:renderRPK,'biaya-dinas':renderBiayaDinas,matrix:renderMatrix,'daftar-bayar':renderDaftarBayar,'pengaturan-mgmt':renderPengaturanMgmt,'presensi-peg':renderPresensiPegawai,'unduh-rekap':renderUnduhRekap,'jadwal-piket':renderJadwalPiket,'pengaturan-admin':renderPengaturanAdmin,'cetak-st-peg':renderCetakSTPeg,'surat-pemberitahuan':renderSuratPemberitahuan,'buat-lpd':renderBuatLPD};
     if(rend[prev])rend[prev]();
   }
 }
@@ -11329,7 +11337,7 @@ function tglSehari(d){
 
 <!-- ═══ MODAL KETERANGAN TIDAK HADIR ═══ -->
 <div id="modalKet" style="display:none;position:fixed;inset:0;background:rgba(30,42,74,.45);z-index:2000;align-items:center;justify-content:center">
-  <div style="background:white;border-radius:18px;padding:28px 28px 22px;max-width:460px;width:95%;box-shadow:0 8px 40px rgba(30,42,74,.25)">
+  <div style="background:white;border-radius:18px;padding:20px 20px 16px;max-width:520px;width:95%;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(30,42,74,.25)">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
       <div style="font-size:16px;font-weight:800;color:#1E2A4A">📝 Keterangan Tidak Hadir</div>
       <button onclick="closeModalKet()" style="font-size:18px;color:#8896BB;background:none;border:none;cursor:pointer;padding:0;line-height:1">✕</button>
@@ -11339,16 +11347,17 @@ function tglSehari(d){
         <div style="font-size:10px;color:#6B7A99;font-weight:600" id="modalKetNavLabel"></div>
         <button onclick="hapusSemuaKetTH()" style="font-size:10px;font-weight:700;background:#FFF5F5;color:#DC2626;border:1px solid #FCA5A5;border-radius:5px;padding:2px 7px;cursor:pointer">🗑 Hapus Semua</button>
       </div>
-      <div style="display:flex;gap:3px;align-items:center;flex-wrap:wrap" id="modalKetNavDots"></div>
+      <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-height:150px;overflow-y:auto" id="modalKetNavDots"></div>
     </div>
-    <div id="modalKetInfo" style="font-size:13px;color:#6B7A99;margin-bottom:14px"></div>
+    <div id="modalKetInfo" style="font-size:13px;color:#6B7A99;margin-bottom:10px"></div>
     <div id="modalKetBonusInfo"></div>
-    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;max-height:55vh;overflow-y:auto" id="modalKetOptions"></div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <div style="flex:1;min-height:0;overflow-y:auto;margin-bottom:10px;padding-right:2px" id="modalKetOptions"></div>
+    <div style="font-size:10px;color:#8896BB;text-align:center;margin-bottom:8px" id="modalKetHint">💡 Pilihan langsung tersimpan otomatis — tidak perlu klik Simpan</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid #E5EAF5;padding-top:12px">
       <button onclick="hapusKetTH()" id="btnHapusKet" style="background:#FFF5F5;color:#DC2626;border:1px solid #FCA5A5;border-radius:10px;padding:9px 16px;font-weight:700;font-size:13px;cursor:pointer;display:none">🗑 Hapus</button>
       <div style="flex:1"></div>
-      <button onclick="modalNavPrev()" id="btnNavPrev" style="background:#F0F4FF;color:#3B5BDB;border:none;border-radius:10px;padding:9px 16px;font-weight:700;font-size:13px;cursor:pointer;display:none">◀ Prev</button>
-      <button onclick="modalNavNext()" id="btnNavNext" style="background:#3B5BDB;color:white;border:none;border-radius:10px;padding:9px 16px;font-weight:700;font-size:13px;cursor:pointer;display:none">Next ▶</button>
+      <button onclick="modalNavPrev()" id="btnNavPrev" style="background:#F0F4FF;color:#3B5BDB;border:none;border-radius:10px;padding:9px 16px;font-weight:700;font-size:13px;cursor:pointer;display:none">◀ Sebelumnya</button>
+      <button onclick="modalNavNext()" id="btnNavNext" style="background:#3B5BDB;color:white;border:none;border-radius:10px;padding:9px 16px;font-weight:700;font-size:13px;cursor:pointer;display:none">Berikutnya ▶</button>
       <button onclick="simpanModalKet()" id="btnSimpanKet" style="background:#2563EB;color:white;border:none;border-radius:10px;padding:9px 20px;font-weight:700;font-size:13px;cursor:pointer;display:none">💾 Simpan</button>
       <button onclick="closeModalKet()" id="btnNavSelesai" style="background:#059669;color:white;border:none;border-radius:10px;padding:9px 20px;font-weight:700;font-size:13px;cursor:pointer">✅ Selesai</button>
     </div>
@@ -11417,14 +11426,14 @@ function _showModalAt(idx){
   document.getElementById("modalKetNav").style.display=hasQueue?"block":"none";
   document.getElementById("btnNavPrev").style.display=hasQueue?"inline-block":"none";
   document.getElementById("btnNavNext").style.display=hasQueue&&idx<_modalQueue.length-1?"inline-block":"none";
-  document.getElementById("btnNavSelesai").textContent=(!hasQueue||idx===_modalQueue.length-1)?"✅ Selesai":"Simpan ▶";
+  document.getElementById("btnNavSelesai").textContent="✅ Selesai";
   // Tombol Simpan: tampil saat single tanggal (tidak pakai Next/Prev) dan ada pilihan aktif
   const btnSimpanKet=document.getElementById("btnSimpanKet");
   btnSimpanKet.style.display=(!hasQueue&&current)?"inline-block":"none";
   if(hasQueue){
     const belumDiisi=_modalQueue.filter(q=>!keteranganTH[ketKey(q.nama,q.ds)]).length;
     const labelBelum=belumDiisi>0?` · <span style="color:#DC2626;font-weight:700">⚠ ${belumDiisi} belum diisi</span>`:"";
-    document.getElementById("modalKetNavLabel").innerHTML=`${idx+1} dari ${_modalQueue.length} tanggal${labelBelum}`;
+    document.getElementById("modalKetNavLabel").innerHTML=`${idx+1} dari ${_modalQueue.length} tanggal${labelBelum}<div style="font-size:9px;font-weight:500;color:#8896BB;margin-top:2px">🟦 dibuka · 🟩 sudah diisi · 🟥 belum diisi</div>`;
     document.getElementById("modalKetNavDots").innerHTML=_modalQueue.map((_,i)=>{
       const ds=_modalQueue[i].ds;
       const tgl=parseDate(ds);
@@ -11435,13 +11444,16 @@ function _showModalAt(idx){
       const tc=isActive||hasKet?"white":"#DC2626";
       const border=isActive?"#3B5BDB":hasKet?"#10B981":"#FCA5A5";
       return`<div onclick="_showModalAt(${i})" title="${ds}" style="
-        width:24px;height:24px;border-radius:5px;cursor:pointer;
-        background:${bg};border:1.5px solid ${border};
-        color:${tc};font-size:10px;font-weight:700;
+        width:30px;height:30px;border-radius:7px;cursor:pointer;
+        background:${bg};border:2px solid ${border};
+        color:${tc};font-size:12px;font-weight:800;
         display:flex;align-items:center;justify-content:center;
         transition:all .15s;flex-shrink:0">${dayNum}</div>`;
     }).join("");
   }
+
+  // Pastikan tanggal aktif terlihat di kotak tanggal (layar HP kecil)
+  setTimeout(function(){const dots=document.getElementById("modalKetNavDots");if(dots&&dots.children[idx])dots.children[idx].scrollIntoView({block:"nearest"});},0);
 
   // Info bonus ambil libur — versi lengkap
   const s=_summaryMap[nama];
@@ -11457,7 +11469,7 @@ function _showModalAt(idx){
       const manualTag = (s.saldoAwal>0 ? `<span style="color:#7C3AED"> · ⏩ Saldo bulan lalu: +${s.saldoAwal}</span>` : "") + (s.kuotaTambahan>0
         ? `<span style="color:#3B5BDB"> · ➕ Manual: +${s.kuotaTambahan}</span>`
         : "");
-      bonusInfo=`<div style="font-size:11px;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:8px;padding:8px 12px;margin-bottom:14px;color:${warnColor};font-weight:600">
+      bonusInfo=`<div style="font-size:11px;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:8px;padding:6px 10px;margin-bottom:10px;color:${warnColor};font-weight:600">
         🌟 Bonus Hadir Cuti Bersama: ${s.bonusCutiTotal} hari${manualTag} &nbsp;|&nbsp; Total: <b>${totalKuotaModal}</b> &nbsp;|&nbsp; Sisa: <b>${sisaTotal}</b> hari
         <div style="font-size:10px;font-weight:500;margin-top:2px;color:#059669">${labelLintas}</div>
         ${sisaTotal===0?'<div style="font-size:10px;margin-top:2px;color:#DC2626">⚠ Kuota Ambil Libur habis!</div>':""}
@@ -11476,31 +11488,47 @@ function _showModalAt(idx){
   // Set status toggle lainnya sesuai data tersimpan
   _lainnyaStatus = currentLainnyaStatus;
 
-  document.getElementById("modalKetOptions").innerHTML=KET_TH_LIST.map(k=>{
-    const active=currentBase===k.val;
-    const isAmbildibur=k.val==="ambildibur";
-    const sisaCheck = s ? s.bonusSisa : 0;
-    const disabled=isAmbildibur&&sisaCheck===0&&!active;
-    const isLainnya=k.val==="lainnya";
-    const lainnyaOnclick = disabled ? "" : isLainnya ? (active ? "document.getElementById('lainnyaInputBox').style.display='block'" : "toggleLainnyaInput()") : "setKetTH('"+k.val+"')";
-    return`<button onclick="${lainnyaOnclick}" style="
-      display:flex;align-items:center;gap:10px;padding:13px 14px;border-radius:12px;cursor:${disabled?"not-allowed":"pointer"};
-      border:2.5px solid ${active?k.color:k.border};
-      background:${active?k.bg:disabled?"#F5F5F5":"white"};
-      color:${active?k.color:disabled?"#AAAAAA":"#475068"};
-      font-weight:${active?800:600};font-size:13px;
-      transition:all .15s;text-align:left;width:100%;opacity:${disabled?0.5:1};
-      box-shadow:${active?`0 0 0 3px ${k.color}33`:"none"};
-      transform:${active?"scale(1.01)":"scale(1)"}"
-    >
-      <span style="font-size:20px">${k.icon}</span>
-      <span style="flex:1">${k.label}${disabled?" (kuota habis)":""}</span>
-      ${active?`<span style="background:${k.color};color:white;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;flex-shrink:0">✓</span>`:""}
-    </button>
-    ${isLainnya?`<div id="lainnyaInputBox" style="display:${active?"block":"none"};margin-top:6px;padding:12px;background:#F8FAFC;border:1px solid #CBD5E1;border-radius:10px">
-      <div id="lainnyaInputBoxInner"></div>
-    </div>`:""}`;
-  }).join("");
+  // Opsi dikelompokkan: Tidak Hadir / Dihitung Hadir / Lainnya (string concatenation, bukan nested template)
+  const _grp=[
+    {t:"🔴 TIDAK HADIR",c:"#DC2626",vals:["alpa","sakit","ijin","cuti"]},
+    {t:"🟢 DIHITUNG HADIR",c:"#059669",vals:["ambildibur","kompensasipiket","dinas","hadir"]},
+    {t:"",c:"#475068",vals:["lainnya"]}
+  ];
+  let _optHtml="";
+  _grp.forEach(function(g){
+    if(g.t) _optHtml+='<div style="font-size:10px;font-weight:800;letter-spacing:.5px;color:'+g.c+';margin:'+(_optHtml?'8px':'0')+' 0 4px">'+g.t+'</div>';
+    else _optHtml+='<div style="height:8px"></div>';
+    _optHtml+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+    g.vals.forEach(function(v){
+      const k=KET_TH_LIST.find(function(x){return x.val===v;});
+      if(!k) return;
+      const active=currentBase===k.val;
+      const isAmbildibur=k.val==="ambildibur";
+      const sisaCheck = s ? s.bonusSisa : 0;
+      const disabled=isAmbildibur&&sisaCheck===0&&!active;
+      const isLainnya=k.val==="lainnya";
+      const oc = disabled ? "" : isLainnya ? (active ? "document.getElementById('lainnyaInputBox').style.display='block'" : "toggleLainnyaInput()") : "setKetTH('"+k.val+"')";
+      const lbl = k.label + (isAmbildibur && !disabled && s && (s.totalKuota||s.bonusCutiTotal)>0 ? " (sisa "+sisaCheck+")" : "") + (disabled?" (kuota habis)":"");
+      _optHtml+='<button onclick="'+oc+'" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:10px;'
+        +'cursor:'+(disabled?'not-allowed':'pointer')+';'
+        +'border:2.5px solid '+(active?k.color:k.border)+';'
+        +'background:'+(active?k.bg:disabled?'#F5F5F5':'white')+';'
+        +'color:'+(active?k.color:disabled?'#AAAAAA':'#475068')+';'
+        +'font-weight:'+(active?800:600)+';font-size:12.5px;text-align:left;width:100%;line-height:1.25;'
+        +'opacity:'+(disabled?0.5:1)+';'
+        +'box-shadow:'+(active?'0 0 0 3px '+k.color+'33':'none')+';'
+        +(isLainnya?'grid-column:1/-1;':'')
+        +'"><span style="font-size:18px;flex-shrink:0">'+k.icon+'</span>'
+        +'<span style="flex:1">'+lbl+'</span>'
+        +(active?'<span style="background:'+k.color+';color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex-shrink:0">✓</span>':'')
+        +'</button>';
+      if(isLainnya){
+        _optHtml+='<div id="lainnyaInputBox" style="grid-column:1/-1;display:'+(active?'block':'none')+';padding:8px;background:#F8FAFC;border:1px solid #CBD5E1;border-radius:10px"><div id="lainnyaInputBoxInner"></div></div>';
+      }
+    });
+    _optHtml+='</div>';
+  });
+  document.getElementById("modalKetOptions").innerHTML=_optHtml;
 
   // Render isi lainnyaInputBox secara terpisah agar tidak ada konflik kutipan
   _renderLainnyaBox(currentLainnyaTeks, currentLainnyaStatus);
@@ -11514,33 +11542,23 @@ function _renderLainnyaBox(teks, status){
   if(!box) return;
   box.innerHTML = "";
 
-  const label = document.createElement("div");
-  label.style.cssText = "font-size:12px;color:#475068;margin-bottom:6px;font-weight:600";
-  label.textContent = "📝 Tulis keterangan:";
-  box.appendChild(label);
-
   const inp = document.createElement("input");
   inp.id = "lainnyaTeksInput";
   inp.type = "text";
-  inp.placeholder = "contoh: Rapat Desa, Kegiatan PKK, dll.";
+  inp.placeholder = "Tulis keterangan, mis: Rapat Desa, Kegiatan PKK";
   inp.value = teks;
-  inp.style.cssText = "width:100%;padding:8px 10px;border:1.5px solid #CBD5E1;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box";
+  inp.style.cssText = "width:100%;padding:7px 10px;border:1.5px solid #CBD5E1;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;margin-bottom:6px";
   inp.addEventListener("keydown", function(e){ if(e.key==="Enter"){saveLainnyaTeks();e.preventDefault();} });
   box.appendChild(inp);
 
-  const statusLabel = document.createElement("div");
-  statusLabel.style.cssText = "font-size:12px;color:#475068;margin-top:10px;margin-bottom:6px;font-weight:600";
-  statusLabel.textContent = "📊 Status kehadiran:";
-  box.appendChild(statusLabel);
-
-  const btnRow = document.createElement("div");
-  btnRow.style.cssText = "display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap";
+  const row = document.createElement("div");
+  row.style.cssText = "display:flex;gap:5px;align-items:stretch";
 
   function makeStatusBtn(id, st, emoji, labelTxt, activeColor, activeBg){
     const btn = document.createElement("button");
     btn.id = id;
     const isActive = status === st;
-    btn.style.cssText = "flex:1;min-width:80px;padding:8px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;" +
+    btn.style.cssText = "flex:1;padding:6px 2px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;line-height:1.2;" +
       "border:2px solid " + (isActive ? activeColor : "#E2E8F0") + ";" +
       "background:" + (isActive ? activeBg : "white") + ";" +
       "color:" + (isActive ? activeColor : "#6B7280");
@@ -11548,31 +11566,16 @@ function _renderLainnyaBox(teks, status){
     btn.addEventListener("click", function(){ setLainnyaStatus(st); });
     return btn;
   }
-
-  btnRow.appendChild(makeStatusBtn("lainnyaStatusTH",    "th",    "🔴", "Tidak Hadir",   "#DC2626", "#FFF5F5"));
-  btnRow.appendChild(makeStatusBtn("lainnyaStatusIjin",  "ijin",  "📋", "Dihitung Ijin", "#7C3AED", "#F5F3FF"));
-  btnRow.appendChild(makeStatusBtn("lainnyaStatusHadir", "hadir", "🟢", "Dihitung Hadir","#059669", "#ECFDF5"));
-  box.appendChild(btnRow);
-
-  const actionRow = document.createElement("div");
-  actionRow.style.cssText = "display:flex;gap:8px";
+  row.appendChild(makeStatusBtn("lainnyaStatusTH",    "th",    "🔴", "Tidak Hadir",   "#DC2626", "#FFF5F5"));
+  row.appendChild(makeStatusBtn("lainnyaStatusIjin",  "ijin",  "📋", "Dihitung Ijin", "#7C3AED", "#F5F3FF"));
+  row.appendChild(makeStatusBtn("lainnyaStatusHadir", "hadir", "🟢", "Dihitung Hadir","#059669", "#ECFDF5"));
 
   const btnSimpan = document.createElement("button");
-  btnSimpan.style.cssText = "flex:1;padding:8px;background:#475068;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer";
+  btnSimpan.style.cssText = "padding:6px 12px;background:#475068;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer";
   btnSimpan.textContent = "✓ Simpan";
   btnSimpan.addEventListener("click", saveLainnyaTeks);
-
-  const btnBatal = document.createElement("button");
-  btnBatal.style.cssText = "padding:8px 12px;background:#EEF2FF;color:#475068;border:none;border-radius:8px;font-size:13px;cursor:pointer";
-  btnBatal.textContent = "Batal";
-  btnBatal.addEventListener("click", function(){
-    const outer = document.getElementById("lainnyaInputBox");
-    if(outer) outer.style.display = "none";
-  });
-
-  actionRow.appendChild(btnSimpan);
-  actionRow.appendChild(btnBatal);
-  box.appendChild(actionRow);
+  row.appendChild(btnSimpan);
+  box.appendChild(row);
 }
 
 function simpanModalKet(){
@@ -13518,7 +13521,7 @@ function renderRekapPraHitung(){
     const expandId = `pra-expand-${idx}`;
     tr.innerHTML=`
       <td class="sticky-col1" style="text-align:center;font-size:11px;padding:8px 4px">${idx+1}</td>
-      <td class="sticky-col2" style="font-weight:700;color:#1E2A4A;max-width:110px;min-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;padding:8px 6px">${esc(nama)}</td>
+      <td class="sticky-col2" style="font-weight:700;color:#1E2A4A;max-width:96px;min-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;padding:8px 6px">${esc(nama)}</td>
       <td style="color:#475068;text-align:center;font-size:11px;padding:8px 4px">${hk.length}</td>
       <td style="font-weight:700;color:#16A34A;text-align:center;font-size:11px;padding:8px 4px">${s.hariHadir}</td>
       <td style="font-weight:700;color:${s.hariTidakHadir.length>0?'#DC2626':'#C4CFEE'};text-align:center;font-size:11px;padding:8px 4px">${s.hariTidakHadir.length}</td>
@@ -13542,8 +13545,7 @@ function renderRekapPraHitung(){
           ${s.kuotaTambahan>0?'+'+s.kuotaTambahan:'+ Tambah'}
         </button>${saldoTag}
       </td>
-      <td style="text-align:center;padding:4px 3px"><button onclick="toggleDetail('${expandId}')" style="background:#EEF2FF;color:#3B5BDB;border:1px solid #C7D2FE;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap">▼</button></td>
-      <td style="text-align:center;padding:4px 3px"><button onclick="openModalKetAll('${esc(nama)}')" style="background:#F0F4FF;color:#6B7A99;border:1px solid #D0D9F0;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap">⚙</button></td>`;
+      <td style="text-align:center;padding:4px 3px;white-space:nowrap"><button onclick="toggleDetail('${expandId}')" style="background:#EEF2FF;color:#3B5BDB;border:1px solid #C7D2FE;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap">▼</button> <button onclick="openModalKetAll('${esc(nama)}')" style="background:#F0F4FF;color:#6B7A99;border:1px solid #D0D9F0;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap">⚙</button></td>`;
     tbody.appendChild(tr);
 
     // Detail row — sama persis dengan renderSummary
@@ -13606,7 +13608,7 @@ function renderRekapPraHitung(){
     <td style="text-align:center;font-weight:700;color:${totDinasUkm>0?'#14532d':'#C4CFEE'}">${totDinasUkm}</td>
     <td style="text-align:center;font-weight:700;color:${totHadirKet>0?'#0369A1':'#C4CFEE'}">${totHadirKet}</td>
     <td style="text-align:center;font-weight:700;color:${totLainnya>0?'#4B5563':'#C4CFEE'}">${totLainnya}</td>
-    <td></td><td></td><td></td><td></td><td></td></tr>`;
+    <td></td><td></td><td></td><td></td></tr>`;
 
   const expDesc = document.getElementById('exportDesc');
   if(expDesc) expDesc.textContent = namaList.length+' pegawai · '+hk.length+' hari kerja · estimasi (belum final)';
@@ -13765,7 +13767,7 @@ function renderSummary(){
     const expandId=`expand-${idx}`;
     tr.innerHTML=`
       <td class="sticky-col1" style="text-align:center;font-size:11px;padding:8px 4px">${idx+1}</td>
-      <td class="sticky-col2" style="font-weight:700;color:#1E2A4A;max-width:110px;min-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;padding:8px 6px">${esc(nama)}</td>
+      <td class="sticky-col2" style="font-weight:700;color:#1E2A4A;max-width:96px;min-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;padding:8px 6px">${esc(nama)}</td>
       <td style="color:#475068;text-align:center;font-size:11px;padding:8px 4px">${hk.length}</td>
       <td style="font-weight:700;color:#16A34A;text-align:center;font-size:11px;padding:8px 4px">${s.hariHadir}</td>
       <td style="font-weight:700;color:${s.hariTidakHadir.length>0?"#DC2626":"#C4CFEE"};text-align:center;font-size:11px;padding:8px 4px">${s.hariTidakHadir.length}</td>
@@ -13789,8 +13791,7 @@ function renderSummary(){
           ${s.kuotaTambahan>0?"+"+s.kuotaTambahan:"+ Tambah"}
         </button>${saldoTag}
       </td>
-      <td style="text-align:center;padding:4px 3px"><button onclick="toggleDetail('${expandId}')" style="background:#EEF2FF;color:#3B5BDB;border:1px solid #C7D2FE;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap">▼</button></td>
-      <td style="text-align:center;padding:4px 3px"><button onclick="openModalKetAll('${esc(nama)}')" style="background:#F0F4FF;color:#6B7A99;border:1px solid #D0D9F0;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap">⚙</button></td>`;
+      <td style="text-align:center;padding:4px 3px;white-space:nowrap"><button onclick="toggleDetail('${expandId}')" style="background:#EEF2FF;color:#3B5BDB;border:1px solid #C7D2FE;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap">▼</button> <button onclick="openModalKetAll('${esc(nama)}')" style="background:#F0F4FF;color:#6B7A99;border:1px solid #D0D9F0;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap">⚙</button></td>`;
     tbody.appendChild(tr);
     
     // Detail row (hidden by default)
@@ -13845,11 +13846,11 @@ function renderSummary(){
     <td style="text-align:center;font-weight:700;color:${totDinasUkm>0?'#14532d':'#C4CFEE'}">${totDinasUkm}</td>
     <td style="text-align:center;font-weight:700;color:${totHadirKet>0?'#0369A1':'#C4CFEE'}">${totHadirKet}</td>
     <td style="text-align:center;font-weight:700;color:${totLainnya>0?'#4B5563':'#C4CFEE'}">${totLainnya}</td>
-    <td></td><td></td><td></td><td></td><td></td></tr>`;
+    <td></td><td></td><td></td><td></td></tr>`;
 
   document.getElementById("rekapPeriode").textContent=getPeriodeStr();
   const _rjp=document.getElementById("rekapJudulPrefix"); if(_rjp) _rjp.textContent="📊 Rekap Presensi";
-  document.getElementById("exportDesc").textContent=
+  const _exD=document.getElementById("exportDesc"); if(_exD) _exD.textContent=
     `${namaList.length} pegawai · ${hk.length} hari kerja · ${totalTidakHadir} tidak hadir · ${countTerlambat} terlambat`;
 }
 
@@ -17848,7 +17849,7 @@ function _batalSinkronSTCore(){
         <div style="overflow-x:auto;overflow-y:auto;max-height:70vh">
           <table class="rekap-table">
             <thead><tr>
-              <th class="sticky-col1" style="min-width:32px;width:32px;font-size:10px">No</th><th class="sticky-col2" style="min-width:110px;max-width:110px;font-size:10px">Nama Pegawai</th><th style="font-size:10px">HK</th><th style="font-size:10px">H</th><th style="font-size:10px">TH</th>
+              <th class="sticky-col1" style="min-width:32px;width:32px;font-size:10px">No</th><th class="sticky-col2" style="min-width:96px;max-width:96px;font-size:10px">Nama Pegawai</th><th style="font-size:10px">HK</th><th style="font-size:10px">H</th><th style="font-size:10px">TH</th>
               <th style="font-size:10px" title="Tanpa Keterangan">❌ Tanpa Ket.</th>
               <th style="font-size:10px" title="Sakit">🏥 Sakit</th>
               <th style="font-size:10px" title="Ijin">📋 Ijin</th>
@@ -17858,36 +17859,119 @@ function _batalSinkronSTCore(){
               <th style="font-size:10px" title="Perjalanan Dinas / UKM">✈️ Dinas</th>
               <th style="font-size:10px" title="Hadir (tanpa tap mesin)">✅ Hadir*</th>
               <th style="font-size:10px" title="Lainnya">📝 Lainnya</th>
-              <th style="font-size:10px">Bonus</th><th style="font-size:10px">Ambil</th><th style="font-size:10px;white-space:normal;min-width:80px">Kuota ambil libur</th>
-              <th></th><th></th>
+              <th style="font-size:10px">Bonus</th><th style="font-size:10px">Ambil</th><th style="font-size:10px;white-space:normal;min-width:62px">Kuota ambil libur</th>
+              <th></th>
             </tr></thead>
             <tbody id="rekapBody"></tbody>
             <tfoot id="rekapFoot"></tfoot>
           </table>
         </div>
       </div>
-      <div class="card" style="margin-top:14px;border:1px solid #e5e7eb">
-        <div class="card-header" style="padding:14px 20px;background:#f9fafb;border-bottom:1px solid #e5e7eb">
-          <h3 style="font-size:13px;color:var(--ink);font-weight:700">📥 Unduh Rekap Presensi</h3>
-        </div>
-        <div style="padding:16px 20px">
-          <div style="display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center">
-            <div>
-              <p style="font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;font-weight:600">Format File Tersedia</p>
-              <p style="font-size:13px;color:var(--ink);margin-bottom:4px" id="exportDesc">–</p>
-              <p style="font-size:11px;color:#9ca3af;margin-top:2px">Pilih format file yang sesuai dengan kebutuhan Anda</p>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-              <button onclick="exportExcel()" style="background:#f3f4f6;color:var(--ink);border:1.5px solid #d1d5db;border-radius:var(--radius);padding:10px 16px;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s">📊 Excel</button>
-              <button onclick="exportPDFperPegawai()" style="background:#f3f4f6;color:var(--ink);border:1.5px solid #d1d5db;border-radius:var(--radius);padding:10px 16px;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s">📄 PDF</button>
-            </div>
-          </div>
-        </div>
+      <div style="margin-top:14px;text-align:center">
+        <button onclick="navigateTo('unduh-rekap')" class="btn btn-outline" style="border-color:var(--teal);color:var(--teal);font-weight:600">📥 Unduh Rekap (Excel / PDF) →</button>
       </div>
       <p style="text-align:center;font-size:11px;color:#d1d5db;margin-top:12px" id="footerInfo"></p>
     </div>
   `;
 })();
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// MENU TERSENDIRI: UNDUH REKAP PRESENSI
+// Memakai data & fungsi ekspor yang sama dengan panel Rekap Presensi
+// ═══════════════════════════════════════════════════════════════════════
+(function(){
+  const el=document.getElementById('panel-unduh-rekap');
+  if(!el) return;
+  const optBulan=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
+    .map((n,i)=>`<option value="${i+1}">${n}</option>`).join('');
+  el.innerHTML=`
+    <div style="max-width:760px">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header" style="padding:14px 20px"><h3 style="font-size:14px">1️⃣ Pilih Periode</h3></div>
+        <div class="card-body" style="padding:16px 20px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+          <div><label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;text-transform:uppercase">Bulan</label>
+            <select id="uBulan" onchange="onUnduhPeriode()" style="border:1.5px solid var(--line);border-radius:var(--radius);padding:10px 12px;font-size:14px;outline:none;min-width:150px">${optBulan}</select></div>
+          <div><label style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;text-transform:uppercase">Tahun</label>
+            <input type="number" id="uTahun" min="2000" max="2100" onchange="onUnduhPeriode()" style="width:100px;border:1.5px solid var(--line);border-radius:var(--radius);padding:10px 12px;font-size:14px;outline:none"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header" style="padding:14px 20px"><h3 style="font-size:14px">2️⃣ Status Rekap</h3></div>
+        <div class="card-body" style="padding:16px 20px">
+          <div id="uStatus"></div>
+          <p style="font-size:13px;color:var(--ink);margin-top:10px" id="exportDesc">–</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header" style="padding:14px 20px"><h3 style="font-size:14px">3️⃣ Unduh</h3></div>
+        <div class="card-body" style="padding:16px 20px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+            <button id="uBtnExcel" onclick="exportExcel()" style="text-align:left;background:#f0fdf4;color:var(--ink);border:1.5px solid #86efac;border-radius:12px;padding:16px;cursor:pointer">
+              <div style="font-size:26px">📊</div>
+              <div style="font-size:15px;font-weight:700;margin-top:4px">Excel (.xlsx)</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">Rekap semua pegawai dalam satu file</div>
+            </button>
+            <button id="uBtnPdf" onclick="exportPDFperPegawai()" style="text-align:left;background:#fef2f2;color:var(--ink);border:1.5px solid #fca5a5;border-radius:12px;padding:16px;cursor:pointer">
+              <div style="font-size:26px">📄</div>
+              <div style="font-size:15px;font-weight:700;margin-top:4px">PDF per Pegawai</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">Satu halaman per pegawai, siap cetak</div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+})();
+
+function renderUnduhRekap(){
+  _initPresensiPanel();
+  const sb=document.getElementById('sBulan'), st=document.getElementById('sTahun');
+  const ub=document.getElementById('uBulan'), ut=document.getElementById('uTahun');
+  if(sb&&ub) ub.value=sb.value;
+  if(st&&ut) ut.value=st.value;
+  _refreshUnduhRekap();
+  // data bulan bisa datang terlambat dari cloud: segarkan status beberapa kali
+  [600,2000,4000].forEach(ms=>setTimeout(function(){
+    const pn=document.getElementById('panel-unduh-rekap');
+    if(pn&&pn.classList.contains('active')) _refreshUnduhRekap();
+  },ms));
+}
+
+function onUnduhPeriode(){
+  const ub=document.getElementById('uBulan'), ut=document.getElementById('uTahun');
+  const sb=document.getElementById('sBulan'), st=document.getElementById('sTahun');
+  if(!ub||!ut||!sb||!st||!ut.value) return;
+  sb.value=ub.value; st.value=ut.value;
+  onBulanChange();
+  _refreshUnduhRekap();
+  [600,2000,4000].forEach(ms=>setTimeout(_refreshUnduhRekap,ms));
+}
+
+function _refreshUnduhRekap(){
+  const box=document.getElementById('uStatus');
+  if(!box) return;
+  let periode='', ok=!!submitted, jml=0, hk=0;
+  try{ periode=getPeriodeStr(); jml=getNameList().length; hk=getHariKerja().length; }catch(e){}
+  box.innerHTML = ok
+    ? `<div style="display:flex;align-items:center;gap:10px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:12px 14px">
+         <span style="font-size:22px">✅</span>
+         <div><div style="font-weight:700;color:#166534;font-size:14px">Rekap ${periode} sudah dihitung</div>
+         <div style="font-size:12px;color:#475068">Siap diunduh.</div></div></div>`
+    : `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 14px">
+         <span style="font-size:22px">⚠️</span>
+         <div style="flex:1;min-width:180px"><div style="font-weight:700;color:#92400e;font-size:14px">Rekap ${periode} belum dihitung</div>
+         <div style="font-size:12px;color:#475068">Tekan <b>Hitung Sekarang</b> di menu Rekap Presensi, lalu kembali ke sini.</div></div>
+         <button class="btn btn-primary btn-sm" onclick="navigateTo('presensi');switchTab('rekap')">Buka Rekap Presensi →</button>
+       </div>`;
+  const d=document.getElementById('exportDesc');
+  if(d && !ok) d.textContent=jml+' pegawai · '+hk+' hari kerja · belum final';
+  ['uBtnExcel','uBtnPdf'].forEach(id=>{
+    const b=document.getElementById(id);
+    if(b){ b.style.opacity=ok?'1':'.55'; b.title=ok?'':'Hitung rekap terlebih dahulu'; }
+  });
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // FITUR CETAK AMPLOP OTOMATIS UNTUK SURAT PEMBERITAHUAN
