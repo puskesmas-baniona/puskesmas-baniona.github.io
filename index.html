@@ -14066,8 +14066,11 @@ function _getKepalaUPTD(){
   const pj=db.pejabat||{};
   const kaId=pj.kepalaPuskesmasId;
   const ka=kaId?db.pegawai.find(p=>p.id===kaId):null;
+  let _nm=ka?ka.nama:(pj.kepalaPuskesmas||'Thomas Tupen Beda, A.Md. Kep.');
+  // Pastikan gelar tercantum (nama di data pegawai kadang tanpa gelar)
+  if(!/A\.?\s*Md/i.test(_nm)) _nm=String(_nm).replace(/[\s,]+$/,'')+', A.Md. Kep.';
   return {
-    nama: ka?ka.nama:(pj.kepalaPuskesmas||'Thomas Tupen Beda, A.Md. Kep.'),
+    nama: _nm,
     nip:  ka?(ka.nip||'-'):(pj.nipKepalaPuskesmas||'19701215 199501 1 001'),
   };
 }
@@ -16599,8 +16602,9 @@ async function exportExcel(){
         totalTerlambatStr:fmtDurasiTeks(s.totalTerlambat),
         totalPulangCepatStr:fmtDurasiTeks(s.totalPulangCepat),
         totalGabunganStr:fmtDurasiTeks((s.totalTerlambat||0)+(s.totalPulangCepat||0)),
-        // Sisa hari kerja efektif = hari kerja − tidak hadir − (total terlambat+pulang cepat ÷ jam efektif per hari, dibulatkan)
-        sisaHariEfektif:Math.max(0,hk.length-s.hariTidakHadir.length-(effPerHari>0?Math.round(((s.totalTerlambat||0)+(s.totalPulangCepat||0))/effPerHari):0)),
+        // Sisa hari kerja efektif = hari kerja − tidak hadir − potongan.
+        // Mulai Agustus 2026: potongan = 1 hari kerja tiap 7 jam (420 mnt) total terlambat + pulang cepat (7 jam=1, 14 jam=2, dst). Sebelum itu: rumus lama (terlambat+pulang cepat ÷ jam efektif/hari).
+        sisaHariEfektif:Math.max(0,hk.length-s.hariTidakHadir.length-((t*12+b)>=(2026*12+8)?Math.floor(((s.totalTerlambat||0)+(s.totalPulangCepat||0))/420):(effPerHari>0?Math.round(((s.totalTerlambat||0)+(s.totalPulangCepat||0))/effPerHari):0))),
         alpa:ketCounts.alpa,sakit:ketCounts.sakit,ijin:ketCounts.ijin,
         ambilCuti:ketCounts.cuti,ambilLibur:ketCounts.ambildibur,dinasUkm:ketCounts.dinasUkm,
         tanpaKet:tanpaKetCount,
