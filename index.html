@@ -11367,15 +11367,15 @@ function tglSehari(d){
 <div id="modalKuota" style="display:none;position:fixed;inset:0;background:rgba(30,42,74,.45);z-index:2001;align-items:center;justify-content:center">
   <div style="background:white;border-radius:18px;padding:28px 28px 22px;max-width:420px;width:95%;box-shadow:0 8px 40px rgba(30,42,74,.25)">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-      <div style="font-size:16px;font-weight:800;color:#1E2A4A">➕ Tambah Kuota Ambil Libur</div>
+      <div style="display:flex;align-items:center;gap:10px"><div style="width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,#3B5BDB,#6C8CFF);color:white;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(59,91,219,.35)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div><div><div style="font-size:16px;font-weight:800;color:#1E2A4A;line-height:1.2">Atur Kuota Ambil Libur</div><div style="font-size:11px;color:#8896BB;font-weight:600">Total kuota per pegawai</div></div></div>
       <button onclick="closeModalKuota()" style="font-size:18px;color:#8896BB;background:none;border:none;cursor:pointer;padding:0;line-height:1">✕</button>
     </div>
     <div id="modalKuotaInfo" style="font-size:13px;color:#475068;margin-bottom:14px"></div>
     <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#92400E">
-      Kuota tambahan tidak mengubah kuota dari kehadiran cuti bersama. Keduanya dijumlahkan.
+      Kuota sudah gabungan: otomatis (saldo bulan lalu + hadir di cuti bersama) dan penyesuaian manual. Ubah angka total sesuai kebutuhan. Jika pegawai nanti masuk di hari cuti bersama, kuota otomatis bertambah di atas angka ini.
     </div>
     <div style="margin-bottom:16px">
-      <label style="font-size:12px;font-weight:700;color:#475068;display:block;margin-bottom:8px">Tambah Kuota (hari)</label>
+      <label style="font-size:12px;font-weight:700;color:#475068;display:block;margin-bottom:8px">Total Kuota (hari)</label>
       <div style="display:flex;align-items:center;gap:10px">
         <button onclick="kuotaStep(-1)" style="width:38px;height:38px;border-radius:10px;border:1.5px solid #D0D9F0;background:#F8FAFF;font-size:20px;font-weight:700;cursor:pointer">−</button>
         <input type="number" id="inputKuotaTambah" min="0" max="99" value="0" style="width:80px;text-align:center;font-size:20px;font-weight:800;color:#1E2A4A;border:1.5px solid #D0D9F0;border-radius:10px;padding:6px;outline:none">
@@ -11466,8 +11466,8 @@ function _showModalAt(idx){
       const labelLintas=s.usedOtherMonths>0
         ? `(semua bulan: terpakai ${s.ambilLiburCount||0} · bulan lain ${s.usedOtherMonths}h)`
         : `(bulan ini: terpakai ${s.ambilLiburCount||0})`;
-      const manualTag = (s.saldoAwal>0 ? `<span style="color:#7C3AED"> · ⏩ Saldo bulan lalu: +${s.saldoAwal}</span>` : "") + (s.kuotaTambahan>0
-        ? `<span style="color:#3B5BDB"> · ➕ Manual: +${s.kuotaTambahan}</span>`
+      const manualTag = (s.saldoAwal>0 ? `<span style="color:#7C3AED"> · ⏩ Saldo bulan lalu: +${s.saldoAwal}</span>` : "") + (s.kuotaTambahan!==0
+        ? `<span style="color:#3B5BDB"> · ✏️ Penyesuaian: ${s.kuotaTambahan>0?"+":""}${s.kuotaTambahan}</span>`
         : "");
       bonusInfo=`<div style="font-size:11px;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:8px;padding:6px 10px;margin-bottom:10px;color:${warnColor};font-weight:600">
         🌟 Bonus Hadir Cuti Bersama: ${s.bonusCutiTotal} hari${manualTag} &nbsp;|&nbsp; Total: <b>${totalKuotaModal}</b> &nbsp;|&nbsp; Sisa: <b>${sisaTotal}</b> hari
@@ -11705,14 +11705,16 @@ let _kuotaNama = "";
 function openModalKuota(nama){
   _kuotaNama = nama;
   const s = _summaryMap[nama] || {};
-  const sudahAda = kuotaManual[nama] || 0;
-  document.getElementById("inputKuotaTambah").value = sudahAda;
+  const oto = (s.saldoAwal||0) + (s.bonusCutiTotal||0);
+  const total = s.totalKuota!==undefined ? s.totalKuota : oto + (kuotaManual[nama]||0);
+  const adj = kuotaManual[nama]||0;
+  document.getElementById("inputKuotaTambah").value = total;
   document.getElementById("modalKuotaInfo").innerHTML =
     `<div style="font-weight:700;color:#1E2A4A;margin-bottom:8px">👤 ${esc(nama)}</div>
      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
-       <div style="background:#ECFDF5;border-radius:8px;padding:7px 10px;color:#059669;font-weight:600">🌟 Bonus cuti bersama<br><b style="font-size:16px">${s.bonusCutiTotal||0}</b> hari${s.saldoAwal>0?` <span style="font-size:10px;color:#7C3AED">+ saldo bulan lalu ${s.saldoAwal}</span>`:""}</div>
-       <div style="background:#EEF2FF;border-radius:8px;padding:7px 10px;color:#3B5BDB;font-weight:600">➕ Kuota manual saat ini<br><b style="font-size:16px">${sudahAda}</b> hari</div>
-       <div style="background:#F8FAFF;border-radius:8px;padding:7px 10px;color:#1E2A4A;font-weight:600">📊 Total kuota<br><b style="font-size:16px">${s.totalKuota!==undefined?s.totalKuota:(s.bonusCutiTotal||0)+sudahAda}</b> hari</div>
+       <div style="background:#ECFDF5;border-radius:8px;padding:7px 10px;color:#059669;font-weight:600">🌟 Otomatis<br><b style="font-size:16px">${oto}</b> hari<div style="font-size:10px;font-weight:500">cuti bersama ${s.bonusCutiTotal||0}${s.saldoAwal>0?` + saldo bulan lalu ${s.saldoAwal}`:""}</div></div>
+       <div style="background:#EEF2FF;border-radius:8px;padding:7px 10px;color:#3B5BDB;font-weight:600">✏️ Penyesuaian manual<br><b style="font-size:16px">${adj>0?"+"+adj:adj}</b> hari</div>
+       <div style="background:#F8FAFF;border-radius:8px;padding:7px 10px;color:#1E2A4A;font-weight:600">📊 Total kuota<br><b style="font-size:16px">${total}</b> hari</div>
        <div style="background:${(s.bonusSisa||0)===0?"#FFF5F5":"#F0FDF4"};border-radius:8px;padding:7px 10px;color:${(s.bonusSisa||0)===0?"#DC2626":"#16A34A"};font-weight:600">✅ Sisa ambil libur<br><b style="font-size:16px">${s.bonusSisa||0}</b> hari</div>
      </div>`;
   document.getElementById("modalKuota").style.display = "flex";
@@ -11730,14 +11732,17 @@ function kuotaStep(delta){
 }
 
 function simpanKuotaManual(){
-  const val = Math.max(0, parseInt(document.getElementById("inputKuotaTambah").value)||0);
+  const val = Math.max(0, parseInt(document.getElementById("inputKuotaTambah").value)||0); // total kuota yang diinginkan
   const namaSave = _kuotaNama;
-  if(val === 0){ delete kuotaManual[namaSave]; } else { kuotaManual[namaSave] = val; }
+  const sm = _summaryMap[namaSave] || {};
+  const oto = (sm.saldoAwal||0) + (sm.bonusCutiTotal||0);
+  const delta = val - oto; // simpan sebagai selisih dari kuota otomatis, agar tambahan otomatis tetap jalan
+  if(delta === 0){ delete kuotaManual[namaSave]; } else { kuotaManual[namaSave] = delta; }
   _summaryMap = buildSummaryMap();
   savePresensiDB();
   renderSummary();
   closeModalKuota();
-  _prNotif("success","✅ Kuota ambil libur diperbarui",`${namaSave} · Kuota manual: ${val} hari · Ketuk Hitung Sekarang jika perlu refresh penuh`);
+  _prNotif("success","✅ Kuota ambil libur diperbarui",`${namaSave} · Total kuota: ${val} hari`);
 }
 
 
@@ -12816,7 +12821,8 @@ function buildSummaryMap(){
     const bonusTersedia = bonusCutiSet.size;
     const kuotaTambahan = kuotaManual[nama]||0;
     const saldoAwal = Math.max(0, +_prSaldoAwal[nama]||0); // sisa kuota terbawa dari bulan sebelumnya
-    const totalKuota = saldoAwal + bonusTersedia + kuotaTambahan;
+    const kuotaOtomatis = saldoAwal + bonusTersedia; // otomatis: saldo bulan lalu + hadir di hari cuti bersama
+    const totalKuota = Math.max(0, kuotaOtomatis + kuotaTambahan); // kuotaTambahan = penyesuaian manual (+/-)
     // Batasi pemakaian ambil libur sesuai kuota
     const ambilLiburValid = ambilLiburDates.slice(0, totalKuota);
     // Hanya hari ambil libur yang valid (masih ada kuota) dihitung hadir
@@ -12879,7 +12885,8 @@ function buildSummaryMap(){
       avgJamKerja: jkCount?Math.round(jkSum/jkCount):0,
       bonusCutiList: [...bonusCutiSet].sort(),
       bonusCutiTotal: bonusTersedia,       // bonus cuti bulan ini
-      kuotaTambahan,                        // kuota manual ditambahkan admin
+      kuotaTambahan,                        // penyesuaian manual (+/-) dari admin
+      kuotaOtomatis,                        // saldo awal + bonus cuti bersama
       saldoAwal,                            // saldo kuota terbawa dari bulan sebelumnya
       totalKuota,                           // total kuota = cuti bersama + manual
       totalEarned,                          // kumulatif semua bulan
@@ -13013,6 +13020,9 @@ function getNameList(){
 
 let _prFilterTgl="";
 function prSetFilterTgl(v){ _prFilterTgl=v||""; renderRows(); }
+let _prFilterNama="";
+function prSetFilterNama(v){ _prFilterNama=(v||"").trim().toLowerCase(); renderRows(); }
+function prResetFilter(){ _prFilterTgl=""; _prFilterNama=""; var e=document.getElementById("prFilterNama"); if(e) e.value=""; var d=document.getElementById("prFilterNamaDD"); if(d) d.classList.remove("open"); renderRows(); }
 function renderRows(){
   const cont=document.getElementById("rowsContainer");
   // Batasi pilihan tanggal ke bulan & tahun yang sedang dipilih (picker langsung membuka bulan tsb)
@@ -13026,8 +13036,11 @@ function renderRows(){
   let _fCount=0;
   const parts=[];
   rows.forEach((row,i)=>{
-    const _hide=!!_prFilterTgl && !!row.tanggal && row.tanggal!==_prFilterTgl;
-    if(!_hide && _prFilterTgl && row.tanggal===_prFilterTgl) _fCount++;
+    const _hideTgl=!!_prFilterTgl && !!row.tanggal && row.tanggal!==_prFilterTgl;
+    // Filter nama: baris kosong / baru (belum disimpan) tetap tampil agar bisa diisi
+    const _hideNama=!!_prFilterNama && !!(row.nama||"").trim() && !row._dirty && (row.nama||"").toLowerCase().indexOf(_prFilterNama)<0;
+    const _hide=_hideTgl||_hideNama;
+    if(!_hide && (_prFilterTgl||_prFilterNama)) _fCount++;
     const res=submitted?computeRow(row):null;
     const isMerah=!!tanggalMerah[row.tanggal||""];
     const isCuti=!!tanggalCuti[row.tanggal||""];
@@ -13125,11 +13138,11 @@ function renderRows(){
         <button class="pr-save-btn" onclick="simpanBaris(${i})" title="Simpan & urutkan">💾</button>
         <button class="remove-btn" onclick="removeRow(${i})" ${rows.length===1?"disabled":""} title="Hapus baris">✕</button>
       </div>
-      ${badges?`<div class="inline-badges">${badges}</div>`:""}`);
+      ${badges?`<div class="inline-badges"${_hide?' style="display:none"':""}>${badges}</div>`:""}`);
   });
   cont.innerHTML=parts.join("");
   const _fInfo=document.getElementById("prFilterInfo");
-  if(_fInfo) _fInfo.textContent=_prFilterTgl?(_fCount+" data pada tanggal ini"):"Menampilkan semua tanggal";
+  if(_fInfo) _fInfo.textContent=(_prFilterTgl||_prFilterNama)?(_fCount+" data ditampilkan"):"Menampilkan semua data";
 }
 
 // ═══════════════════════════════════════════════════════
@@ -13246,6 +13259,47 @@ function prNamaPilih(i, nama){
     const tglEl = document.querySelector('#pr-row-'+i+' input[type="date"]');
     if(tglEl) tglEl.focus();
   }, 80);
+}
+
+// ── Filter nama (Input Presensi) — tampilan & perilaku sama dengan input nama pegawai ──
+let _prFNamaHL = -1;
+function prFNamaInput(v){ prSetFilterNama(v); prFNamaShowDD(); }
+function prFNamaShowDD(){
+  const inp=document.getElementById('prFilterNama'), dd=document.getElementById('prFilterNamaDD');
+  if(!inp||!dd) return;
+  const opts=_prNamaFilter(inp.value);
+  _prFNamaHL=-1;
+  document.querySelectorAll('.pr-nama-dd.open').forEach(el=>{ if(el.id!=='prFilterNamaDD') el.classList.remove('open'); });
+  if(!opts.length){ dd.classList.remove('open'); dd.innerHTML=''; return; }
+  dd.innerHTML=opts.map((p,oi)=>
+    '<div class="pr-nama-opt" data-oi="'+oi+'" data-nama="'+esc(p.nama)+'">'+
+      '<div>'+esc(p.nama)+(p.namaPanggilan?' <span style="color:#9ca3af;font-size:11px">('+esc(p.namaPanggilan)+')</span>':'')+'</div>'+
+      '<div class="opt-nip">'+(p.nip||'')+'</div></div>'
+  ).join('');
+  dd.classList.add('open');
+  dd.querySelectorAll('.pr-nama-opt').forEach(function(el){
+    el.addEventListener('mouseover',function(){ prFNamaSetHL(parseInt(el.dataset.oi)); });
+    el.addEventListener('pointerdown',function(e){ e.preventDefault(); prFNamaPilih(el.dataset.nama); });
+  });
+}
+function prFNamaSetHL(oi){
+  _prFNamaHL=oi;
+  document.querySelectorAll('#prFilterNamaDD .pr-nama-opt').forEach((el,idx)=>el.classList.toggle('highlighted',idx===oi));
+}
+function prFNamaKey(e){
+  const dd=document.getElementById('prFilterNamaDD');
+  if(!dd||!dd.classList.contains('open')) return;
+  const opts=dd.querySelectorAll('.pr-nama-opt');
+  if(e.key==='ArrowDown'){ e.preventDefault(); prFNamaSetHL(Math.min(_prFNamaHL+1,opts.length-1)); if(opts[_prFNamaHL]) opts[_prFNamaHL].scrollIntoView({block:'nearest'}); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); prFNamaSetHL(Math.max(_prFNamaHL-1,0)); if(opts[_prFNamaHL]) opts[_prFNamaHL].scrollIntoView({block:'nearest'}); }
+  else if(e.key==='Enter'){ if(_prFNamaHL>=0&&opts[_prFNamaHL]){ e.preventDefault(); prFNamaPilih(opts[_prFNamaHL].dataset.nama); } }
+  else if(e.key==='Escape'){ dd.classList.remove('open'); }
+}
+function prFNamaPilih(nama){
+  const inp=document.getElementById('prFilterNama'), dd=document.getElementById('prFilterNamaDD');
+  if(inp) inp.value=nama;
+  if(dd) dd.classList.remove('open');
+  prSetFilterNama(nama);
 }
 
 // Tutup semua dropdown nama saat klik di luar
@@ -13476,8 +13530,8 @@ function renderRekapPraHitung(){
     const ambildiburWarning = s.ambilLiburDates && s.ambilLiburDates.length > s.totalKuota
       ? `<div style="font-size:10px;color:#DC2626;font-weight:700;margin-top:4px">⚠ ${s.ambilLiburDates.length - s.totalKuota} Ambil Libur melebihi kuota — dihitung Tidak Hadir</div>`
       : '';
-    const kuotaTambahanDisplay = (s.saldoAwal>0 ? `<span style="color:#7C3AED"> · ⏩ Saldo bulan lalu: +${s.saldoAwal}</span>` : '') + (s.kuotaTambahan>0 ? `<span style="color:#3B5BDB"> · ➕ Manual: +${s.kuotaTambahan}</span>` : '');
-    const bonusCutiInfo = (s.bonusCutiTotal > 0 || s.kuotaTambahan > 0 || s.saldoAwal > 0)
+    const kuotaTambahanDisplay = (s.saldoAwal>0 ? `<span style="color:#7C3AED"> · ⏩ Saldo bulan lalu: +${s.saldoAwal}</span>` : '') + (s.kuotaTambahan ? `<span style="color:#3B5BDB"> · ✏️ Penyesuaian: ${s.kuotaTambahan>0?'+':''}${s.kuotaTambahan}</span>` : '');
+    const bonusCutiInfo = (s.bonusCutiTotal > 0 || s.kuotaTambahan !== 0 || s.saldoAwal > 0)
       ? `<div style="font-size:10px;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:6px;padding:4px 8px;margin-bottom:6px;color:#059669;font-weight:700">
           🌟 Bonus Cuti Bersama: ${s.bonusCutiTotal} hari${kuotaTambahanDisplay} · Total: ${s.totalKuota} · Terpakai: ${s.ambilLiburCount} · Sisa: ${s.bonusSisa}
          </div>${ambildiburWarning}`
@@ -13516,7 +13570,7 @@ function renderRekapPraHitung(){
       </div>` : (bonusCutiInfo||"")+`<span style="font-size:12px;color:#C4CFEE">–</span>`;
 
     // Baris utama tabel — sama persis dengan renderSummary
-    const saldoTag = (s.totalKuota>0) ? '<div title="Sisa kuota ambil libur = saldo bulan lalu '+(s.saldoAwal||0)+' + bonus cuti bersama '+(s.bonusCutiTotal||0)+' + manual '+(s.kuotaTambahan||0)+' − terpakai '+(s.ambilLiburCount||0)+'" style="font-size:10px;font-weight:800;color:'+((s.bonusSisa||0)>0?'#7C3AED':'#DC2626')+';margin-top:2px;white-space:nowrap">⏩ '+(s.bonusSisa||0)+' sisa</div>' : '';
+    const saldoTag = (s.totalKuota>0) ? '<div title="Sisa kuota ambil libur = saldo bulan lalu '+(s.saldoAwal||0)+' + bonus cuti bersama '+(s.bonusCutiTotal||0)+' + penyesuaian manual '+(s.kuotaTambahan||0)+' − terpakai '+(s.ambilLiburCount||0)+'" style="font-size:10px;font-weight:800;color:'+((s.bonusSisa||0)>0?'#7C3AED':'#DC2626')+';margin-top:2px;white-space:nowrap">⏩ '+(s.bonusSisa||0)+' sisa</div>' : '';
     const tr = document.createElement('tr');
     const expandId = `pra-expand-${idx}`;
     tr.innerHTML=`
@@ -13537,12 +13591,7 @@ function renderRekapPraHitung(){
       <td style="font-weight:700;color:${s.bonusCutiTotal>0?'#059669':'#C4CFEE'};text-align:center;font-size:11px;padding:8px 4px">${s.bonusCutiTotal>0?s.bonusCutiTotal:0}</td>
       <td style="font-weight:700;color:${s.ambilLiburCount>0?(s.ambilLiburCount>s.totalKuota?'#DC2626':'#059669'):'#C4CFEE'};text-align:center;font-size:11px;padding:8px 4px">${s.ambilLiburCount>0?s.ambilLiburCount:0}</td>
       <td style="text-align:center;padding:3px 2px">
-        <button onclick="openModalKuota('${esc(nama)}')" title="Tambah kuota manual untuk ${esc(nama)}" style="
-          background:${s.kuotaTambahan>0?'#EEF2FF':'#F8FAFF'};
-          color:${s.kuotaTambahan>0?'#3B5BDB':'#8896BB'};
-          border:1.5px solid ${s.kuotaTambahan>0?'#C7D2FE':'#E2E8F0'};
-          border-radius:7px;padding:2px 5px;font-size:10px;cursor:pointer;font-weight:700;white-space:nowrap">
-          ${s.kuotaTambahan>0?'+'+s.kuotaTambahan:'+ Tambah'}
+        <button onclick="openModalKuota('${esc(nama)}')" title="Atur total kuota ambil libur ${esc(nama)}" style="display:inline-flex;align-items:center;gap:4px;background:${s.kuotaTambahan!==0?"linear-gradient(135deg,#EEF2FF,#E0E7FF)":(s.totalKuota>0?"linear-gradient(135deg,#ECFDF5,#D1FAE5)":"#F8FAFF")};color:${s.kuotaTambahan!==0?"#3B5BDB":(s.totalKuota>0?"#047857":"#8896BB")};border:1.5px solid ${s.kuotaTambahan!==0?"#A5B4FC":(s.totalKuota>0?"#6EE7B7":"#E2E8F0")};border-radius:999px;padding:3px 9px;font-size:11px;cursor:pointer;font-weight:800;white-space:nowrap;box-shadow:0 1px 3px rgba(59,91,219,.12);transition:transform .12s,box-shadow .12s" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 3px 8px rgba(59,91,219,.25)'" onmouseout="this.style.transform='';this.style.boxShadow='0 1px 3px rgba(59,91,219,.12)'"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg><span>${s.totalKuota||0} hari</span>
         </button>${saldoTag}
       </td>
       <td style="text-align:center;padding:4px 3px;white-space:nowrap"><button onclick="toggleDetail('${expandId}')" style="background:#EEF2FF;color:#3B5BDB;border:1px solid #C7D2FE;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap">▼</button> <button onclick="openModalKetAll('${esc(nama)}')" style="background:#F0F4FF;color:#6B7A99;border:1px solid #D0D9F0;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap">⚙</button></td>`;
@@ -13722,10 +13771,10 @@ function renderSummary(){
       ? `<div style="font-size:10px;color:#DC2626;font-weight:700;margin-top:4px">⚠ ${s.ambilLiburDates.length - s.totalKuota} Ambil Libur melebihi kuota — dihitung Tidak Hadir</div>`
       : "";
 
-    const kuotaTambahanDisplay = (s.saldoAwal>0 ? `<span style="color:#7C3AED"> · ⏩ Saldo bulan lalu: +${s.saldoAwal}</span>` : "") + (s.kuotaTambahan>0
-      ? `<span style="color:#3B5BDB"> · ➕ Manual: +${s.kuotaTambahan}</span>`
+    const kuotaTambahanDisplay = (s.saldoAwal>0 ? `<span style="color:#7C3AED"> · ⏩ Saldo bulan lalu: +${s.saldoAwal}</span>` : "") + (s.kuotaTambahan!==0
+      ? `<span style="color:#3B5BDB"> · ✏️ Penyesuaian: ${s.kuotaTambahan>0?"+":""}${s.kuotaTambahan}</span>`
       : "");
-    const bonusCutiInfo = (s.bonusCutiTotal > 0 || s.kuotaTambahan > 0 || s.saldoAwal > 0)
+    const bonusCutiInfo = (s.bonusCutiTotal > 0 || s.kuotaTambahan !== 0 || s.saldoAwal > 0)
       ? `<div style="font-size:10px;background:#ECFDF5;border:1px solid #6EE7B7;border-radius:6px;padding:4px 8px;margin-bottom:6px;color:#059669;font-weight:700">
           🌟 Bonus Cuti Bersama: ${s.bonusCutiTotal} hari${kuotaTambahanDisplay} · Total: ${s.totalKuota} · Terpakai: ${s.ambilLiburCount} · Sisa: ${s.bonusSisa}
          </div>${ambildiburWarning}`
@@ -13762,7 +13811,7 @@ function renderSummary(){
         }).join("")}
       </div>` : (bonusCutiInfo||"")+`<span style="font-size:12px;color:#C4CFEE">–</span>`;
 
-    const saldoTag = (s.totalKuota>0) ? '<div title="Sisa kuota ambil libur = saldo bulan lalu '+(s.saldoAwal||0)+' + bonus cuti bersama '+(s.bonusCutiTotal||0)+' + manual '+(s.kuotaTambahan||0)+' − terpakai '+(s.ambilLiburCount||0)+'" style="font-size:10px;font-weight:800;color:'+((s.bonusSisa||0)>0?'#7C3AED':'#DC2626')+';margin-top:2px;white-space:nowrap">⏩ '+(s.bonusSisa||0)+' sisa</div>' : '';
+    const saldoTag = (s.totalKuota>0) ? '<div title="Sisa kuota ambil libur = saldo bulan lalu '+(s.saldoAwal||0)+' + bonus cuti bersama '+(s.bonusCutiTotal||0)+' + penyesuaian manual '+(s.kuotaTambahan||0)+' − terpakai '+(s.ambilLiburCount||0)+'" style="font-size:10px;font-weight:800;color:'+((s.bonusSisa||0)>0?'#7C3AED':'#DC2626')+';margin-top:2px;white-space:nowrap">⏩ '+(s.bonusSisa||0)+' sisa</div>' : '';
     const tr=document.createElement("tr");
     const expandId=`expand-${idx}`;
     tr.innerHTML=`
@@ -13783,12 +13832,7 @@ function renderSummary(){
       <td style="font-weight:700;color:${s.bonusCutiTotal>0?"#059669":"#C4CFEE"};text-align:center;font-size:11px;padding:8px 4px">${s.bonusCutiTotal>0?s.bonusCutiTotal:0}</td>
       <td style="font-weight:700;color:${s.ambilLiburCount>0?(s.ambilLiburCount>s.totalKuota?"#DC2626":"#059669"):"#C4CFEE"};text-align:center;font-size:11px;padding:8px 4px">${s.ambilLiburCount>0?s.ambilLiburCount:0}</td>
       <td style="text-align:center;padding:3px 2px">
-        <button onclick="openModalKuota('${esc(nama)}')" title="Tambah kuota manual untuk ${esc(nama)}" style="
-          background:${s.kuotaTambahan>0?"#EEF2FF":"#F8FAFF"};
-          color:${s.kuotaTambahan>0?"#3B5BDB":"#8896BB"};
-          border:1.5px solid ${s.kuotaTambahan>0?"#C7D2FE":"#E2E8F0"};
-          border-radius:7px;padding:2px 5px;font-size:10px;cursor:pointer;font-weight:700;white-space:nowrap">
-          ${s.kuotaTambahan>0?"+"+s.kuotaTambahan:"+ Tambah"}
+        <button onclick="openModalKuota('${esc(nama)}')" title="Atur total kuota ambil libur ${esc(nama)}" style="display:inline-flex;align-items:center;gap:4px;background:${s.kuotaTambahan!==0?"linear-gradient(135deg,#EEF2FF,#E0E7FF)":(s.totalKuota>0?"linear-gradient(135deg,#ECFDF5,#D1FAE5)":"#F8FAFF")};color:${s.kuotaTambahan!==0?"#3B5BDB":(s.totalKuota>0?"#047857":"#8896BB")};border:1.5px solid ${s.kuotaTambahan!==0?"#A5B4FC":(s.totalKuota>0?"#6EE7B7":"#E2E8F0")};border-radius:999px;padding:3px 9px;font-size:11px;cursor:pointer;font-weight:800;white-space:nowrap;box-shadow:0 1px 3px rgba(59,91,219,.12);transition:transform .12s,box-shadow .12s" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 3px 8px rgba(59,91,219,.25)'" onmouseout="this.style.transform='';this.style.boxShadow='0 1px 3px rgba(59,91,219,.12)'"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg><span>${s.totalKuota||0} hari</span>
         </button>${saldoTag}
       </td>
       <td style="text-align:center;padding:4px 3px;white-space:nowrap"><button onclick="toggleDetail('${expandId}')" style="background:#EEF2FF;color:#3B5BDB;border:1px solid #C7D2FE;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap">▼</button> <button onclick="openModalKetAll('${esc(nama)}')" style="background:#F0F4FF;color:#6B7A99;border:1px solid #D0D9F0;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap">⚙</button></td>`;
@@ -14169,6 +14213,7 @@ function spRefresh(){
   //              kegiatan non-Sekolah → per Desa (1 surat per desa)
   const perDesa={};    // key = namaDesaLower
   const perSekolah={}; // key = lokasiId
+  const perLain={};    // jenis lokasi 'Lainnya' (mis. PT/perusahaan) → 1 surat per lokasi, TIDAK digabung ke desa
 
   jadwalBulan.forEach(j=>{
     const lok=db.lokasi.find(l=>l.id===j.lokasiId);
@@ -14188,6 +14233,20 @@ function spRefresh(){
         };
       }
       perSekolah[sKey].jadwalList.push(j);
+    } else if(jenisLok==='lainnya'){
+      // Lokasi jenis Lainnya: surat sendiri per lokasi, walau berada di desa yang sama
+      const lKey=String(lok.id);
+      if(!perLain[lKey]){
+        perLain[lKey]={
+          tipeGrup:'lainnya',
+          lokNama: lok.nama||'-',
+          desaNama: lok.desa||'-',
+          kecNama:  lok.kecamatan||'-',
+          pimpinan: { nama:lok.pimpinan, jabatan:lok.jabPimpinan, nip:lok.nipPimpinan },
+          jadwalList:[]
+        };
+      }
+      perLain[lKey].jadwalList.push(j);
     } else {
       // Kelompokkan per desa — normalisasi ketat agar perbedaan spasi/kapitalisasi tidak bikin surat ganda
       const desaKey=(lok.desa||'').toLowerCase().replace(/\s+/g,' ').trim()||'_unknown_';
@@ -14209,7 +14268,8 @@ function spRefresh(){
 
   const desaKeys=Object.keys(perDesa);
   const sekolahKeys=Object.keys(perSekolah);
-  const totalSurat=desaKeys.length+sekolahKeys.length;
+  const lainKeys=Object.keys(perLain);
+  const totalSurat=desaKeys.length+lainKeys.length+sekolahKeys.length;
   const totalDesa=desaKeys.length;
   const totalSekolah=sekolahKeys.length;
 
@@ -14219,6 +14279,7 @@ function spRefresh(){
       <div style="font-size:13px;font-weight:700;color:#1a6b6b">✉️ ${_getNamaBulanID(bulan)} ${tahun}</div>
       <div style="background:#e6f4f4;border-radius:20px;padding:4px 14px;font-size:12px;font-weight:700;color:#1a6b6b">${totalSurat} surat akan dibuat</div>
       ${totalDesa?`<div style="font-size:12px;color:var(--muted)">🏘️ ${totalDesa} surat ke Kepala Desa</div>`:''}
+      ${lainKeys.length?`<div style="font-size:12px;color:var(--muted)">🏢 ${lainKeys.length} surat ke lokasi Lainnya</div>`:''}
       ${totalSekolah?`<div style="font-size:12px;color:var(--muted)">🏫 ${totalSekolah} surat ke Kepala Sekolah</div>`:''}
     </div>`;
 
@@ -14238,6 +14299,21 @@ function spRefresh(){
     daftarBaris.push({
       nomor, suratIdSafe,
       tujuan: grup.desaNama, jenis:'🏘️ Kepala Desa',
+      kec: grup.kecNama||'-', jumlah: grup.jadwalList.length
+    });
+  });
+
+  // Lokasi jenis Lainnya: satu surat per lokasi
+  lainKeys.forEach((lKey)=>{
+    nomor++;
+    const grup=perLain[lKey];
+    grup.allJadwal=jadwalBulan;
+    grup.jadwalList.sort((a,b)=>a.tanggal>b.tanggal?1:-1);
+    const suratIdSafe='sp-surat-'+String(grup.lokNama).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]/g,'_');
+    hiddenPreviews+=spBuildSuratPreview(grup,bulan,tahun,tglSurat,nomor,totalSurat);
+    daftarBaris.push({
+      nomor, suratIdSafe,
+      tujuan: grup.lokNama, jenis:'🏢 Pimpinan Lokasi',
       kec: grup.kecNama||'-', jumlah: grup.jadwalList.length
     });
   });
@@ -14342,6 +14418,8 @@ function spBuildSuratPreview(grup, bulan, tahun, tglSuratVal, nomor, total){
   const romawi=_BULAN_ROMAWI[bulan-1];
 
   const isSekolah=(grup.tipeGrup==='sekolah');
+  const isLain=(grup.tipeGrup==='lainnya');
+  const lokNamaLain=grup.lokNama||'-';
   const desaNama=grup.desaNama||'Tempat';
   const kecNama=grup.kecNama||'-';
   const sekolahNama=grup.sekolahNama||'-';
@@ -14352,6 +14430,11 @@ function spBuildSuratPreview(grup, bulan, tahun, tglSuratVal, nomor, total){
     jabatanPimpinan=grup.pimpinan?grup.pimpinan.jabatan:('Kepala '+sekolahNama);
     namaYth=grup.pimpinan?grup.pimpinan.nama:jabatanPimpinan;
     tempatTujuan=sekolahNama;
+  } else if(isLain){
+    const _jab=(grup.pimpinan&&grup.pimpinan.jabatan)?grup.pimpinan.jabatan:'Pimpinan';
+    jabatanPimpinan=_jab.toLowerCase().indexOf(lokNamaLain.toLowerCase())>=0?_jab:(_jab+' '+lokNamaLain);
+    namaYth=grup.pimpinan&&grup.pimpinan.nama?grup.pimpinan.nama:jabatanPimpinan;
+    tempatTujuan=lokNamaLain;
   } else {
     jabatanPimpinan='Kepala Desa '+desaNama;
     namaYth=grup.pimpinan?grup.pimpinan.nama:jabatanPimpinan;
@@ -14469,9 +14552,11 @@ function spBuildSuratPreview(grup, bulan, tahun, tglSuratVal, nomor, total){
 
   const toolbarLabel=isSekolah
     ?`✉️ Surat ${nomor} dari ${total} — 🏫 ${sekolahNama}`
+    :isLain?`✉️ Surat ${nomor} dari ${total} — 🏢 ${lokNamaLain}`
     :`✉️ Surat ${nomor} dari ${total} — 🏘️ Desa ${desaNama}`;
   const badgeLabel=isSekolah
     ?`<span style="font-size:11px;background:#fde8d0;color:#92400e;border-radius:20px;padding:2px 10px;font-weight:600">🏫 Kepala Sekolah</span>`
+    :isLain?`<span style="font-size:11px;background:#ede9fe;color:#5b21b6;border-radius:20px;padding:2px 10px;font-weight:600">🏢 Pimpinan Lokasi</span>`
     :`<span style="font-size:11px;background:#e6f4f4;color:#1a6b6b;border-radius:20px;padding:2px 10px;font-weight:600">🏘️ Kepala Desa</span>`;
 
   return `
@@ -14592,6 +14677,7 @@ function spBuildSuratPreview(grup, bulan, tahun, tglSuratVal, nomor, total){
           <div style="margin-top:${isSekolah?'5px':'8px'};font-size:${isSekolah?'8pt':'9.5pt'};color:#000;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             ${isSekolah
               ? `<span>Tabel di atas memuat seluruh kegiatan UKM Puskesmas Baniona di sekolah bulan ${namaBulan} ${tahun}. Tanda <b>✔</b> pada kolom <i>Ket.</i> menunjukkan kegiatan yang diselenggarakan di <b>${sekolahNama}</b>.</span>`
+              : isLain ? `<span>Seluruh kegiatan di atas dilaksanakan di ${lokNamaLain}, Desa ${desaNama}.</span>`
               : `<span>Seluruh kegiatan di atas dilaksanakan di Desa ${desaNama}.</span>`
             }
           </div>
@@ -17809,7 +17895,9 @@ function _batalSinkronSTCore(){
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding:8px 10px;background:#f0fdfa;border:1px solid #99f6e4;border-radius:10px">
             <label for="prFilterTgl" style="font-size:12px;font-weight:700;color:var(--teal)">📅 Filter Tanggal</label>
             <input type="date" id="prFilterTgl" onchange="prSetFilterTgl(this.value)" style="border:1.5px solid var(--line);border-radius:8px;padding:6px 8px;font-size:13px">
-            <button type="button" class="btn btn-ghost btn-sm" onclick="prSetFilterTgl('')">Semua</button>
+            <label for="prFilterNama" style="font-size:12px;font-weight:700;color:var(--teal);margin-left:6px">👤 Filter Nama</label>
+            <div class="pr-nama-wrap" style="flex:1;min-width:170px;max-width:260px;width:auto"><input type="text" id="prFilterNama" class="pr-input" placeholder="Nama pegawai..." autocomplete="off" oninput="prFNamaInput(this.value)" onfocus="prFNamaShowDD()" onkeydown="prFNamaKey(event)"><div class="pr-nama-dd" id="prFilterNamaDD"></div></div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="prResetFilter()">Reset</button>
             <span id="prFilterInfo" style="font-size:12px;color:var(--muted)"></span>
           </div>
           <div style="display:grid;grid-template-columns:1.7fr 130px 110px 110px 88px 36px 28px;gap:6px;margin-bottom:4px;padding:0 8px">
@@ -17864,7 +17952,7 @@ function _batalSinkronSTCore(){
               <th style="font-size:10px" title="Perjalanan Dinas / UKM">✈️ Dinas</th>
               <th style="font-size:10px" title="Hadir (tanpa tap mesin)">✅ Hadir*</th>
               <th style="font-size:10px" title="Lainnya">📝 Lainnya</th>
-              <th style="font-size:10px">Bonus</th><th style="font-size:10px">Ambil</th><th style="font-size:10px;white-space:normal;min-width:62px">Kuota ambil libur</th>
+              <th style="font-size:10px">Bonus</th><th style="font-size:10px">Ambil</th><th style="font-size:10px;white-space:normal;min-width:62px">Kuota ambil libur (bisa diedit)</th>
               <th></th>
             </tr></thead>
             <tbody id="rekapBody"></tbody>
@@ -18162,7 +18250,7 @@ function spCetakSemuaAmplop() {
   if (!jadwalBulan.length) { alert('Tidak ada jadwal kegiatan untuk periode ini.'); return; }
 
   // Kelompokkan sama seperti spRefresh (urutan: desa dulu, sekolah kemudian)
-  const perDesa = {}, perSekolah = {};
+  const perDesa = {}, perSekolah = {}, perLain = {};
   jadwalBulan.forEach(j => {
     const lok = db.lokasi.find(l=>l.id===j.lokasiId);
     if (!lok) return;
@@ -18171,6 +18259,13 @@ function spCetakSemuaAmplop() {
       const sKey = String(lok.id);
       if (!perSekolah[sKey]) perSekolah[sKey] = {
         tipeGrup:'sekolah', sekolahNama:lok.nama||'-', desaNama:lok.desa||'-',
+        kecNama:lok.kecamatan||'-',
+        pimpinan:{nama:lok.pimpinan, jabatan:lok.jabPimpinan, nip:lok.nipPimpinan}
+      };
+    } else if (jenis==='lainnya') {
+      const lKey = String(lok.id);
+      if (!perLain[lKey]) perLain[lKey] = {
+        tipeGrup:'lainnya', lokNama:lok.nama||'-', desaNama:lok.desa||'-',
         kecNama:lok.kecamatan||'-',
         pimpinan:{nama:lok.pimpinan, jabatan:lok.jabPimpinan, nip:lok.nipPimpinan}
       };
@@ -18194,6 +18289,23 @@ function spCetakSemuaAmplop() {
     ampList.push({
       nama: jabatan,
       desa: grup.desaNama,
+      kecamatan: grup.kecNama || '-',
+      noSurat: `…… / UKM / PKM.BO / ${romawi} / ${tahun}`,
+      tglSurat: tglSuratFormatted,
+      lampiran: '1 Berkas',
+      perihal: 'Kegiatan Upaya Kesehatan Masyarakat',
+      jumlah: 1
+    });
+  });
+
+  // Amplop lokasi Lainnya (urutan sama dengan tampilan surat: desa, lainnya, sekolah)
+  Object.values(perLain).forEach(grup => {
+    nomor++;
+    const jabL = (grup.pimpinan&&grup.pimpinan.jabatan ? grup.pimpinan.jabatan : 'Pimpinan');
+    const jabatanL = jabL.toLowerCase().indexOf(String(grup.lokNama||'').toLowerCase())>=0 ? jabL : (jabL + ' ' + grup.lokNama);
+    ampList.push({
+      nama: jabatanL,
+      desa: grup.desaNama || grup.lokNama,
       kecamatan: grup.kecNama || '-',
       noSurat: `…… / UKM / PKM.BO / ${romawi} / ${tahun}`,
       tglSurat: tglSuratFormatted,
